@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: claudeboxes-sandbox
+    env: docker
+    plan: standard
+    region: oregon
+    numInstances: 1
+    dockerfilePath: Dockerfile
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 10
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AUTH_PASSWORD
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: PORT
+        value: "3000"

@@ -1,0 +1,19 @@
+- id: list-skills
+  title: List Skills
+  prompt: What skills are available to you? List them from your Skill tool.
+
+- id: create-skill
+  title: Create a new Skill
+  prompt: Use the create-skill skill to help me create a new Claude Code skill.
+
+- id: new-cron-job
+  title: New Cron Job
+  prompt: Use the cron-manager skill to create a new scheduled cron job.
+
+- id: manage-cron-jobs
+  title: Manage Cron Jobs
+  prompt: Use the cron-manager skill to list and manage my existing cron jobs.
+
+- id: list-files
+  title: List Files
+  prompt: List the files in the current working directory.
