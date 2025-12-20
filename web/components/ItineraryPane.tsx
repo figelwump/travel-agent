@@ -27,12 +27,20 @@ async function apiFetch(
   return { ok: true, text: await res.text() };
 }
 
+// Collapse icon
+const CollapseIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M11 19l-7-7 7-7M18 19l-7-7 7-7" />
+  </svg>
+);
+
 interface ItineraryPaneProps {
   tripId: string | null;
   credentials: Credentials | null;
   markdown: string;
   onRefresh: () => void;
   onAskAboutSelection: (selectionMarkdown: string) => void;
+  onCollapse?: () => void;
 }
 
 function extractDestinationsFromMarkdown(md: string): string[] {
@@ -53,7 +61,7 @@ function extractDestinationsFromMarkdown(md: string): string[] {
   return Array.from(new Set(out)).slice(0, 12);
 }
 
-export function ItineraryPane({ tripId, credentials, markdown, onRefresh, onAskAboutSelection }: ItineraryPaneProps) {
+export function ItineraryPane({ tripId, credentials, markdown, onRefresh, onAskAboutSelection, onCollapse }: ItineraryPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const todoRenderIndexRef = useRef(0);
@@ -154,36 +162,61 @@ export function ItineraryPane({ tripId, credentials, markdown, onRefresh, onAskA
   return (
     <div className="flex flex-col h-full" ref={containerRef}>
       <div className="border-b px-4 py-3 flex items-center justify-between gap-3" style={{ borderColor: 'hsl(var(--border-subtle))' }}>
-        <div className="min-w-0">
-          <div className="mono-label" style={{ color: 'hsl(var(--text-tertiary))' }}>Itinerary</div>
-          <div className="truncate" style={{ color: 'hsl(var(--text-primary))', fontSize: '0.9rem' }}>
-            {tripId ? `Trip: ${tripId.slice(0, 8)}…` : 'No trip selected'}
+        <div className="flex items-center gap-3 min-w-0">
+          {onCollapse && (
+            <button
+              type="button"
+              className="itinerary-collapse-btn"
+              onClick={onCollapse}
+              title="Collapse itinerary"
+            >
+              <CollapseIcon />
+            </button>
+          )}
+          <div className="min-w-0">
+            <div className="mono-label" style={{ color: 'hsl(var(--text-tertiary))' }}>Itinerary</div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <button type="button" className="btn-secondary px-3 py-2 text-xs" onClick={onRefresh} disabled={!canInteract || isSaving}>
-            Refresh
+          <button type="button" className="icon-btn" onClick={onRefresh} disabled={!canInteract || isSaving} title="Refresh">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
           </button>
           <button
             type="button"
-            className="btn-secondary px-3 py-2 text-xs"
+            className="icon-btn"
             onClick={handleGenerateMap}
             disabled={!canInteract || isSaving || isGeneratingMap}
-            title="Generates a trip-wide map image (uses Nano Banana Pro API if configured)"
+            title="Generate map"
           >
-            {isGeneratingMap ? 'Generating…' : 'Generate map'}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
           </button>
           <button
             type="button"
-            className="btn-secondary px-3 py-2 text-xs"
+            className="icon-btn"
             onClick={() => setIsEditing(v => !v)}
             disabled={!canInteract || isSaving}
+            title={isEditing ? 'Preview' : 'Edit'}
           >
-            {isEditing ? 'Preview' : 'Edit'}
+            {isEditing ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            )}
           </button>
           {isEditing && (
-            <button type="button" className="btn-primary px-3 py-2 text-xs" onClick={handleSave} disabled={!canInteract || isSaving}>
+            <button type="button" className="btn-primary px-3 py-1.5 text-xs" onClick={handleSave} disabled={!canInteract || isSaving}>
               {isSaving ? 'Saving…' : 'Save'}
             </button>
           )}

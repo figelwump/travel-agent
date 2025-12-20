@@ -12,6 +12,37 @@ const CREDENTIALS_STORAGE_KEY = 'travelagent:auth';
 type Trip = { id: string; name: string; createdAt: string; updatedAt: string };
 type Conversation = { id: string; tripId: string; title: string; createdAt: string; updatedAt: string; sdkSessionId?: string | null };
 
+// Icons as inline SVGs for cleaner UI
+const PlusIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M8 3v10M3 8h10" />
+  </svg>
+);
+
+const ChevronLeftIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M10 4l-4 4 4 4" />
+  </svg>
+);
+
+const ChevronRightIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M6 4l4 4-4 4" />
+  </svg>
+);
+
+const ChatBubbleIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
+const TrashIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z" />
+  </svg>
+);
+
 function authHeader(credentials: Credentials | null): string | null {
   if (!credentials?.password) return null;
   return `Basic ${btoa(`user:${credentials.password}`)}`;
@@ -54,6 +85,7 @@ const App: React.FC = () => {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [itineraryMarkdown, setItineraryMarkdown] = useState<string>('');
   const [showItinerary, setShowItinerary] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [draft, setDraft] = useState('');
 
   const wsUrl = typeof window !== 'undefined'
@@ -342,32 +374,64 @@ const App: React.FC = () => {
 
   if (!credentials) {
     return (
-      <div className="flex items-center justify-center min-h-screen" style={{ background: 'hsl(var(--bg-primary))' }}>
-        <div className="terminal-container max-w-md w-full mx-4 p-6">
-          <h1 className="header-display text-xl mb-3" style={{ color: 'hsl(var(--text-primary))' }}>
-            Access Required
+      <div className="flex items-center justify-center min-h-screen relative overflow-hidden" style={{ background: 'hsl(var(--bg-primary))' }}>
+        {/* Decorative background elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/4 -left-32 w-64 h-64 rounded-full opacity-30"
+               style={{ background: 'radial-gradient(circle, hsl(var(--accent-primary) / 0.15) 0%, transparent 70%)' }} />
+          <div className="absolute bottom-1/4 -right-32 w-96 h-96 rounded-full opacity-20"
+               style={{ background: 'radial-gradient(circle, hsl(225 50% 30% / 0.2) 0%, transparent 70%)' }} />
+        </div>
+
+        <div className="terminal-container max-w-sm w-full mx-4 p-8 animate-scale-in relative z-10">
+          {/* Travel icon */}
+          <div className="flex justify-center mb-6">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center"
+                 style={{ background: 'linear-gradient(135deg, hsl(var(--accent-primary) / 0.15) 0%, hsl(var(--accent-primary) / 0.05) 100%)' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+                   style={{ color: 'hsl(var(--accent-primary))' }}>
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                <path d="M14.05 2a9 9 0 0 1 8 7.94M14.05 6A5 5 0 0 1 18 10" />
+              </svg>
+            </div>
+          </div>
+
+          <h1 className="header-display text-2xl text-center mb-2" style={{ color: 'hsl(var(--text-primary))' }}>
+            Travel Agent
           </h1>
-          <p className="mono-label mb-4" style={{ color: 'hsl(var(--text-secondary))' }}>
-            Enter the password to connect.
+          <p className="text-center mb-6" style={{ color: 'hsl(var(--text-secondary))', fontSize: '0.9rem' }}>
+            Your personal trip planning assistant
           </p>
+
           {connectionError && (
-            <div className="mb-4 p-3 rounded" style={{ background: 'hsl(var(--bg-tertiary))', border: '1px solid hsl(var(--border-primary))' }}>
-              <p className="mono-label text-sm" style={{ color: 'hsl(var(--text-error, 0 70% 60%))' }}>
+            <div className="mb-5 p-3.5 rounded-lg animate-slide-up"
+                 style={{ background: 'hsl(var(--error) / 0.1)', border: '1px solid hsl(var(--error) / 0.2)' }}>
+              <p className="text-sm text-center" style={{ color: 'hsl(var(--error))' }}>
                 {connectionError}
               </p>
             </div>
           )}
-          <form onSubmit={handleCredentialsSubmit} className="space-y-3">
-            <input
-              type="password"
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
-              placeholder="Password"
-              className="input-terminal w-full"
-              autoFocus
-            />
-            <button type="submit" className="btn-primary w-full">Continue</button>
+
+          <form onSubmit={handleCredentialsSubmit} className="space-y-4">
+            <div>
+              <label className="mono-label block mb-2">Password</label>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="Enter access password"
+                className="input-terminal w-full"
+                autoFocus
+              />
+            </div>
+            <button type="submit" className="btn-primary w-full py-3">
+              Continue
+            </button>
           </form>
+
+          <p className="text-center mt-6" style={{ color: 'hsl(var(--text-tertiary))', fontSize: '0.75rem' }}>
+            Secure connection to your travel planning workspace
+          </p>
         </div>
       </div>
     );
@@ -376,7 +440,7 @@ const App: React.FC = () => {
   const canSend = Boolean(isConnected && !isLoading && activeTripId && activeConversationId);
 
   const handleCreateTrip = async () => {
-    const name = prompt('Trip name (e.g., “Iceland”):');
+    const name = prompt('Trip name (e.g., "Iceland"):');
     if (!name) return;
     const res = await apiFetch<Trip>('/api/trips', { method: 'POST', body: JSON.stringify({ name }) }, credentials);
     if (!res.ok) {
@@ -385,6 +449,29 @@ const App: React.FC = () => {
     }
     await refreshTrips();
     setActiveTripId(res.data.id);
+
+    // Create initial conversation and start the travel planner skill
+    const convRes = await apiFetch<Conversation>(
+      `/api/trips/${res.data.id}/conversations`,
+      { method: 'POST', body: JSON.stringify({ title: 'Planning' }) },
+      credentials
+    );
+    if (convRes.ok) {
+      await refreshConversations(res.data.id);
+      setActiveConversationId(convRes.data.id);
+      setMessages([]);
+      // Subscribe to the new conversation
+      sendMessage({ type: 'subscribe', tripId: res.data.id, conversationId: convRes.data.id });
+      // Initiate the travel planner skill
+      setTimeout(() => {
+        const initPrompt = `I'm starting to plan a new trip called "${name}". Let's begin the planning process.`;
+        const timestamp = new Date().toISOString();
+        const userMessage: Message = { id: Date.now().toString(), type: 'user', content: initPrompt, timestamp };
+        setMessages(prev => [...prev, userMessage]);
+        setIsLoading(true);
+        sendMessage({ type: 'chat', tripId: res.data.id, conversationId: convRes.data.id, content: initPrompt });
+      }, 300);
+    }
   };
 
   const handleCreateConversation = async () => {
@@ -461,117 +548,213 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen" style={{ background: 'hsl(var(--bg-primary))' }}>
-      <header className="terminal-container border-b-0 px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
-          <div className="animate-fade-in">
-            <h1 className="header-display text-2xl" style={{ color: 'hsl(var(--text-primary))' }}>
-              Travel Agent
-            </h1>
-            <p className="mono-label mt-1 flex items-center gap-2">
-              <span style={{ color: 'hsl(var(--accent-muted))' }}>{'>'}</span>
-              Plan trips + keep a living itinerary
-            </p>
+      {/* Top header with branding and trip pills */}
+      <header className="px-5 py-3" style={{
+        background: 'linear-gradient(180deg, hsl(var(--bg-secondary)) 0%, hsl(var(--bg-primary)) 100%)',
+        borderBottom: '1px solid hsl(var(--border-subtle))'
+      }}>
+        <div className="flex items-center justify-between gap-6">
+          {/* Left: Branding */}
+          <div className="flex items-center gap-4 animate-fade-in shrink-0">
+            <div className="flex items-center gap-3">
+              {/* Logo mark */}
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center"
+                   style={{ background: 'linear-gradient(135deg, hsl(var(--accent-primary)) 0%, hsl(var(--accent-secondary)) 100%)' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                     style={{ color: 'hsl(var(--text-inverse))' }}>
+                  <circle cx="12" cy="12" r="10" />
+                  <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="header-display text-lg leading-tight" style={{ color: 'hsl(var(--text-primary))' }}>
+                  Travel Agent
+                </h1>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pl-3" style={{ borderLeft: '1px solid hsl(var(--border-subtle))' }}>
+              <div className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`} />
+              <span className="text-xs" style={{ color: 'hsl(var(--text-tertiary))' }}>
+                {isConnected ? 'Connected' : 'Connecting...'}
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap justify-end">
-            <div className={`status-dot ${isConnected ? 'connected' : 'disconnected'}`} />
-            <span className="mono-label">{isConnected ? 'Connected' : 'Connecting...'}</span>
-
-            <select
-              className="input-terminal px-3 py-2"
-              value={activeTripId ?? ''}
-              onChange={(e) => setActiveTripId(e.target.value || null)}
-              disabled={!trips.length}
-              style={{ minWidth: 180 }}
-            >
+          {/* Center: Trip pills with horizontal scroll */}
+          <div className="flex-1 flex items-center justify-center min-w-0 px-6">
+            <div className="trip-pills-container">
               {trips.length === 0 ? (
-                <option value="">No trips yet</option>
+                <span className="text-sm" style={{ color: 'hsl(var(--text-tertiary))' }}>
+                  No trips yet — create one to get started
+                </span>
               ) : (
-                trips.map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                trips.map((t, i) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className={`trip-pill animate-fade-in ${t.id === activeTripId ? 'active' : ''}`}
+                    style={{ animationDelay: `${i * 50}ms` }}
+                    onClick={() => setActiveTripId(t.id)}
+                  >
+                    {t.name}
+                  </button>
+                ))
               )}
-            </select>
-            <button type="button" className="btn-secondary px-3 py-2 text-xs" onClick={handleCreateTrip}>New trip</button>
+              <button
+                type="button"
+                className="trip-pill add-trip"
+                onClick={handleCreateTrip}
+                title="Plan a new trip"
+              >
+                <PlusIcon />
+              </button>
+            </div>
+          </div>
 
-            <select
-              className="input-terminal px-3 py-2"
-              value={activeConversationId ?? ''}
-              onChange={(e) => setActiveConversationId(e.target.value || null)}
-              disabled={!activeTripId || !conversations.length}
-              style={{ minWidth: 180 }}
-            >
-              {conversations.length === 0 ? (
-                <option value="">No chats yet</option>
-              ) : (
-                conversations.map(c => <option key={c.id} value={c.id}>{c.title}</option>)
-              )}
-            </select>
-            <button type="button" className="btn-secondary px-3 py-2 text-xs" onClick={handleCreateConversation} disabled={!activeTripId}>New chat</button>
-
+          {/* Right: Update itinerary button */}
+          <div className="flex items-center gap-3 shrink-0">
             <button
               type="button"
-              className="btn-secondary px-3 py-2 text-xs"
-              onClick={() => setShowItinerary(v => !v)}
-              disabled={!activeTripId}
-            >
-              {showItinerary ? 'Hide itinerary' : 'Show itinerary'}
-            </button>
-
-            <button
-              type="button"
-              className="btn-primary px-3 py-2 text-xs"
+              className="btn-primary px-4 py-2"
               onClick={handleUpdateItineraryRequest}
               disabled={!canSend}
-              title="Asks the agent to produce a full updated itinerary and save it"
+              title="Generate updated itinerary"
             >
-              Update itinerary
-            </button>
-
-            <button type="button" className="btn-secondary px-3 py-2 text-xs" onClick={handleResetCredentials}>
-              Update credentials
+              Update Itinerary
             </button>
           </div>
         </div>
 
         {connectionError && (
-          <div className="max-w-6xl mx-auto mt-3">
-            <div className="mono-label text-sm" style={{ color: 'hsl(var(--text-tertiary))' }}>
+          <div className="mt-3 p-2.5 rounded-lg" style={{ background: 'hsl(var(--error) / 0.1)' }}>
+            <p className="text-xs text-center" style={{ color: 'hsl(var(--error))' }}>
               {connectionError}
-            </div>
+            </p>
           </div>
         )}
       </header>
 
-      <div className="flex-1 overflow-hidden">
-        <div className="max-w-6xl mx-auto h-full px-6 py-4">
-          <div className={`grid h-full gap-4 ${showItinerary ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            <div className="terminal-container h-full overflow-hidden">
-              <ChatPanel
-                isConnected={isConnected}
-                isLoading={isLoading}
-                messages={messages}
-                draft={draft}
-                setDraft={setDraft}
-                onSend={handleSendUserText}
-                onUploadFiles={handleUploadFiles}
-                disabled={!canSend}
-                tripName={activeTrip?.name ?? null}
-                conversationTitle={activeConversation?.title ?? null}
-              />
+      {/* Main content area with sidebar */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Collapsible Chat History Sidebar */}
+        <aside
+          className={`chat-sidebar ${sidebarOpen ? 'open' : 'closed'}`}
+          style={{ background: 'hsl(var(--bg-secondary))' }}
+        >
+          <div className="chat-sidebar-header">
+            <div className="flex items-center gap-2">
+              <ChatBubbleIcon />
+              <span className="mono-label">Chats</span>
             </div>
+            <button
+              type="button"
+              className="sidebar-toggle"
+              onClick={() => setSidebarOpen(false)}
+              title="Collapse sidebar"
+            >
+              <ChevronLeftIcon />
+            </button>
+          </div>
 
-            {showItinerary && (
-              <div className="terminal-container h-full overflow-hidden">
-                <ItineraryPane
-                  tripId={activeTripId}
-                  credentials={credentials}
-                  markdown={itineraryMarkdown}
-                  onRefresh={refreshItinerary}
-                  onAskAboutSelection={handleAskAboutSelection}
-                />
+          <div className="chat-sidebar-content">
+            {!activeTripId ? (
+              <div className="chat-sidebar-empty">
+                <span className="mono-label text-xs">Select a trip</span>
+              </div>
+            ) : conversations.length === 0 ? (
+              <div className="chat-sidebar-empty">
+                <span className="mono-label text-xs">No chats yet</span>
+              </div>
+            ) : (
+              <div className="chat-list">
+                {conversations.map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`chat-list-item ${c.id === activeConversationId ? 'active' : ''}`}
+                    onClick={() => setActiveConversationId(c.id)}
+                  >
+                    <span className="chat-list-title">{c.title}</span>
+                    <span className="chat-list-date">
+                      {new Date(c.createdAt).toLocaleDateString()}
+                    </span>
+                  </button>
+                ))}
               </div>
             )}
           </div>
-        </div>
+
+          <div className="chat-sidebar-footer">
+            <button
+              type="button"
+              className="new-chat-btn"
+              onClick={handleCreateConversation}
+              disabled={!activeTripId}
+            >
+              <PlusIcon />
+              <span>New Chat</span>
+            </button>
+          </div>
+        </aside>
+
+        {/* Sidebar toggle when collapsed */}
+        {!sidebarOpen && (
+          <button
+            type="button"
+            className="sidebar-expand-btn"
+            onClick={() => setSidebarOpen(true)}
+            title="Expand sidebar"
+          >
+            <ChevronRightIcon />
+          </button>
+        )}
+
+        {/* Main chat + itinerary area */}
+        <main className="flex-1 flex overflow-hidden p-4 gap-4">
+          {/* Chat Panel */}
+          <div className={`terminal-container overflow-hidden ${showItinerary ? 'flex-1' : 'flex-1'}`}>
+            <ChatPanel
+              isConnected={isConnected}
+              isLoading={isLoading}
+              messages={messages}
+              draft={draft}
+              setDraft={setDraft}
+              onSend={handleSendUserText}
+              onUploadFiles={handleUploadFiles}
+              disabled={!canSend}
+              tripName={activeTrip?.name ?? null}
+              conversationTitle={activeConversation?.title ?? null}
+            />
+          </div>
+
+          {/* Itinerary Pane */}
+          {showItinerary && (
+            <div className="terminal-container overflow-hidden flex-1">
+              <ItineraryPane
+                tripId={activeTripId}
+                credentials={credentials}
+                markdown={itineraryMarkdown}
+                onRefresh={refreshItinerary}
+                onAskAboutSelection={handleAskAboutSelection}
+                onCollapse={() => setShowItinerary(false)}
+              />
+            </div>
+          )}
+
+          {/* Expand itinerary button when collapsed */}
+          {!showItinerary && activeTripId && (
+            <button
+              type="button"
+              className="itinerary-expand-btn"
+              onClick={() => setShowItinerary(true)}
+              title="Show itinerary"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+              </svg>
+            </button>
+          )}
+        </main>
       </div>
     </div>
   );
