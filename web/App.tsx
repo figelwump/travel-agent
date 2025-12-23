@@ -86,7 +86,42 @@ const App: React.FC = () => {
   const [itineraryMarkdown, setItineraryMarkdown] = useState<string>('');
   const [showItinerary, setShowItinerary] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [draft, setDraft] = useState('');
+  const [draftsByTrip, setDraftsByTrip] = useState<Record<string, string>>({});
+  const [draftHeightsByTrip, setDraftHeightsByTrip] = useState<Record<string, number>>({});
+
+  const activeDraft = useMemo(() => {
+    if (!activeTripId) return '';
+    return draftsByTrip[activeTripId] ?? '';
+  }, [activeTripId, draftsByTrip]);
+
+  const activeDraftHeight = useMemo(() => {
+    if (!activeTripId) return null;
+    return draftHeightsByTrip[activeTripId] ?? null;
+  }, [activeTripId, draftHeightsByTrip]);
+
+  const setDraftForActiveTrip = (value: string) => {
+    if (!activeTripId) return;
+    setDraftsByTrip(prev => {
+      if (prev[activeTripId] === value) return prev;
+      return { ...prev, [activeTripId]: value };
+    });
+    if (value.length === 0) {
+      setDraftHeightsByTrip(prev => {
+        if (!(activeTripId in prev)) return prev;
+        const next = { ...prev };
+        delete next[activeTripId];
+        return next;
+      });
+    }
+  };
+
+  const setDraftHeightForActiveTrip = (value: number) => {
+    if (!activeTripId) return;
+    setDraftHeightsByTrip(prev => {
+      if (prev[activeTripId] === value) return prev;
+      return { ...prev, [activeTripId]: value };
+    });
+  };
 
   const wsUrl = typeof window !== 'undefined'
     ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
@@ -334,13 +369,22 @@ const App: React.FC = () => {
     setActiveConversationId(null);
     setMessages([]);
     setItineraryMarkdown('');
+    setIsLoading(false);
+    streamingMessageIdRef.current = null;
     refreshConversations(activeTripId);
     refreshItinerary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTripId, credentials]);
 
   useEffect(() => {
+    if (!activeTripId || activeConversationId || conversations.length === 0) return;
+    setActiveConversationId(conversations[0].id);
+  }, [activeTripId, activeConversationId, conversations]);
+
+  useEffect(() => {
     if (!activeTripId || !activeConversationId || !credentials) return;
+    setIsLoading(false);
+    streamingMessageIdRef.current = null;
     refreshMessages(activeTripId, activeConversationId);
     sendMessage({ type: 'subscribe', tripId: activeTripId, conversationId: activeConversationId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -370,6 +414,8 @@ const App: React.FC = () => {
     setConversations([]);
     setActiveConversationId(null);
     setItineraryMarkdown('');
+    setDraftsByTrip({});
+    setDraftHeightsByTrip({});
   };
 
   if (!credentials) {
@@ -521,7 +567,7 @@ const App: React.FC = () => {
     setActiveConversationId(res.data.id);
     setMessages([]);
     // Prefill draft with the selection context; user can type a question after.
-    setDraft(`I'm looking at this itinerary excerpt:\n\n\`\`\`markdown\n${selectionMarkdown.trim()}\n\`\`\`\n\nMy question: `);
+    setDraftForActiveTrip(`I'm looking at this itinerary excerpt:\n\n\`\`\`markdown\n${selectionMarkdown.trim()}\n\`\`\`\n\nMy question: `);
     // Subscribe ASAP (before sending anything).
     sendMessage({ type: 'subscribe', tripId: activeTripId, conversationId: res.data.id });
   };
@@ -664,6 +710,14 @@ const App: React.FC = () => {
             ) : conversations.length === 0 ? (
               <div className="chat-sidebar-empty">
                 <span className="mono-label text-xs">No chats yet</span>
+                <button
+                  type="button"
+                  className="btn-secondary mt-3"
+                  onClick={handleCreateConversation}
+                  disabled={!activeTripId}
+                >
+                  Start a chat
+                </button>
               </div>
             ) : (
               <div className="chat-list">
@@ -717,8 +771,10 @@ const App: React.FC = () => {
               isConnected={isConnected}
               isLoading={isLoading}
               messages={messages}
-              draft={draft}
-              setDraft={setDraft}
+              draft={activeDraft}
+              setDraft={setDraftForActiveTrip}
+              textareaHeight={activeDraftHeight}
+              onTextareaHeightChange={setDraftHeightForActiveTrip}
               onSend={handleSendUserText}
               onUploadFiles={handleUploadFiles}
               disabled={!canSend}
@@ -737,6 +793,8 @@ const App: React.FC = () => {
                 onRefresh={refreshItinerary}
                 onAskAboutSelection={handleAskAboutSelection}
                 onCollapse={() => setShowItinerary(false)}
+                tripCreatedAt={activeTrip?.createdAt ?? null}
+                tripUpdatedAt={activeTrip?.updatedAt ?? null}
               />
             </div>
           )}

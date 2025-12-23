@@ -22,6 +22,8 @@ interface ChatPanelProps {
   messages: Message[];
   draft: string;
   setDraft: (v: string) => void;
+  textareaHeight?: number | null;
+  onTextareaHeightChange?: (height: number) => void;
   onSend: (text: string) => void;
   onUploadFiles: (files: FileList) => void;
   tripName: string | null;
@@ -35,6 +37,8 @@ export function ChatPanel({
   messages,
   draft,
   setDraft,
+  textareaHeight,
+  onTextareaHeightChange,
   onSend,
   onUploadFiles,
   tripName,
@@ -42,6 +46,7 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   useEffect(() => { scrollToBottom(); }, [messages.length]);
@@ -49,6 +54,17 @@ export function ChatPanel({
   const hasStreamingAssistant = useMemo(() => (
     messages.some(msg => msg.type === 'assistant' && msg.metadata?.streaming)
   ), [messages]);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    if (typeof textareaHeight === 'number') {
+      textarea.style.height = `${textareaHeight}px`;
+      return;
+    }
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+  }, [textareaHeight, draft]);
 
   const handleSubmit = () => {
     const trimmed = draft.trim();
@@ -167,6 +183,7 @@ export function ChatPanel({
 
           {/* Text input */}
           <textarea
+            ref={textareaRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder={disabled ? 'Select a trip to begin…' : 'Message your travel agent...'}
@@ -182,7 +199,9 @@ export function ChatPanel({
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = 'auto';
-              target.style.height = Math.min(target.scrollHeight, 150) + 'px';
+              const nextHeight = Math.min(target.scrollHeight, 150);
+              target.style.height = nextHeight + 'px';
+              onTextareaHeightChange?.(nextHeight);
             }}
           />
 
@@ -205,4 +224,3 @@ export function ChatPanel({
     </div>
   );
 }
-
