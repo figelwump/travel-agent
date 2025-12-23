@@ -129,11 +129,12 @@ export async function createTrip(name: string): Promise<Trip> {
   await fs.mkdir(assetsDir(id), { recursive: true });
 
   const t = nowIso();
-  const trip: Trip = { id, name: name.trim() || "Untitled trip", createdAt: t, updatedAt: t };
+  const tripName = name.trim() || "Untitled trip";
+  const trip: Trip = { id, name: tripName, createdAt: t, updatedAt: t };
   await writeFileAtomic(tripMetaPath(id), JSON.stringify(trip, null, 2));
 
   // Seed itinerary + prefs
-  await ensureItinerary(id);
+  await ensureItinerary(id, tripName);
   await ensurePrefs(id);
 
   // Seed a default conversation
@@ -152,15 +153,19 @@ export async function touchTrip(tripId: string): Promise<void> {
   await writeFileAtomic(tripMetaPath(tripId), JSON.stringify(trip, null, 2));
 }
 
-export async function ensureItinerary(tripId: string): Promise<void> {
+export async function ensureItinerary(tripId: string, tripName?: string): Promise<void> {
   try {
     await fs.access(itineraryPath(tripId));
   } catch (err: any) {
     if (err?.code !== "ENOENT") throw err;
+    // If no name provided, try to look it up from trip metadata
+    let name = tripName;
+    if (!name) {
+      const trip = await getTrip(tripId);
+      name = trip?.name ?? "My Trip";
+    }
     const template = [
-      `# ${tripId} — Itinerary`,
-      ``,
-      `> Tip: Use this file as the source of truth. The UI will re-render on refresh.`,
+      `# ${name} — Itinerary`,
       ``,
       `## Overview`,
       ``,
