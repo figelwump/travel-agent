@@ -41,6 +41,23 @@ interface ItineraryPaneProps {
   onRefresh: () => void;
   onAskAboutSelection: (selectionMarkdown: string) => void;
   onCollapse?: () => void;
+  tripCreatedAt?: string | null;
+  tripUpdatedAt?: string | null;
+}
+
+function withAuthToken(url: string, credentials: Credentials | null): string {
+  if (!url || !credentials?.password) return url;
+  if (!url.startsWith('/api/')) return url;
+  try {
+    if (typeof window === 'undefined') return url;
+    const resolved = new URL(url, window.location.origin);
+    if (!resolved.searchParams.has('token')) {
+      resolved.searchParams.set('token', credentials.password);
+    }
+    return resolved.pathname + resolved.search;
+  } catch {
+    return url;
+  }
 }
 
 function extractDestinationsFromMarkdown(md: string): string[] {
@@ -61,7 +78,16 @@ function extractDestinationsFromMarkdown(md: string): string[] {
   return Array.from(new Set(out)).slice(0, 12);
 }
 
-export function ItineraryPane({ tripId, credentials, markdown, onRefresh, onAskAboutSelection, onCollapse }: ItineraryPaneProps) {
+export function ItineraryPane({
+  tripId,
+  credentials,
+  markdown,
+  onRefresh,
+  onAskAboutSelection,
+  onCollapse,
+  tripCreatedAt,
+  tripUpdatedAt,
+}: ItineraryPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const todoRenderIndexRef = useRef(0);
@@ -70,6 +96,22 @@ export function ItineraryPane({ tripId, credentials, markdown, onRefresh, onAskA
   const [selection, setSelection] = useState<{ text: string; x: number; y: number } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingMap, setIsGeneratingMap] = useState(false);
+  const dateFormatter = useMemo(
+    () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    []
+  );
+  const createdLabel = useMemo(() => {
+    if (!tripCreatedAt) return null;
+    const d = new Date(tripCreatedAt);
+    if (Number.isNaN(d.getTime())) return null;
+    return dateFormatter.format(d);
+  }, [dateFormatter, tripCreatedAt]);
+  const updatedLabel = useMemo(() => {
+    if (!tripUpdatedAt) return null;
+    const d = new Date(tripUpdatedAt);
+    if (Number.isNaN(d.getTime())) return null;
+    return dateFormatter.format(d);
+  }, [dateFormatter, tripUpdatedAt]);
 
   useEffect(() => {
     if (!isEditing) setDraft(markdown);
@@ -159,6 +201,32 @@ export function ItineraryPane({ tripId, credentials, markdown, onRefresh, onAskA
   // Reset render counter so checkbox order matches markdown order.
   todoRenderIndexRef.current = 0;
 
+  const MarkdownImage = ({ node, ...props }: any) => {
+    const [failed, setFailed] = useState(false);
+    const src = typeof props.src === 'string' ? withAuthToken(props.src, credentials) : props.src;
+    const alt = props.alt ?? 'Image';
+    if (!src) {
+      return <span style={{ color: 'hsl(var(--text-tertiary))' }}>[Image missing: {alt}]</span>;
+    }
+    if (failed) {
+      return (
+        <a href={src} target="_blank" rel="noopener noreferrer">
+          [Image failed to load: {alt}]
+        </a>
+      );
+    }
+    return (
+      <img
+        {...props}
+        src={src}
+        alt={alt}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
+      />
+    );
+  };
+
   return (
     <div className="flex flex-col h-full" ref={containerRef}>
       <div className="border-b px-4 py-3 flex items-center justify-between gap-3" style={{ borderColor: 'hsl(var(--border-subtle))' }}>
@@ -175,6 +243,13 @@ export function ItineraryPane({ tripId, credentials, markdown, onRefresh, onAskA
           )}
           <div className="min-w-0">
             <div className="mono-label" style={{ color: 'hsl(var(--text-tertiary))' }}>Itinerary</div>
+            {(createdLabel || updatedLabel) && (
+              <div className="text-xs mt-1" style={{ color: 'hsl(var(--text-tertiary))' }}>
+                {createdLabel && <span>Trip created: {createdLabel}</span>}
+                {createdLabel && updatedLabel && <span style={{ margin: '0 8px' }}>•</span>}
+                {updatedLabel && <span>Last updated: {updatedLabel}</span>}
+              </div>
+            )}
           </div>
         </div>
 
@@ -277,6 +352,11 @@ export function ItineraryPane({ tripId, credentials, markdown, onRefresh, onAskA
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
               components={{
+                a: ({ node, ...props }) => {
+                  const href = typeof props.href === 'string' ? withAuthToken(props.href, credentials) : props.href;
+                  return <a {...props} href={href} target="_blank" rel="noopener noreferrer" />;
+                },
+                img: MarkdownImage,
                 input: (props: any) => {
                   if (props.type !== 'checkbox') return <input {...props} />;
                   const idx = todoRenderIndexRef.current++;
@@ -284,6 +364,7 @@ export function ItineraryPane({ tripId, credentials, markdown, onRefresh, onAskA
                   return (
                     <input
                       {...props}
+                      disabled={false}
                       onChange={(e) => {
                         if (typeof line === 'number') handleToggleTodoLine(line);
                       }}

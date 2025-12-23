@@ -29,30 +29,61 @@ export async function generateTripMapAsset(
   const trip = await storage.getTrip(tripId);
   const tripName = trip?.name ?? tripId;
 
-  const apiUrl = process.env.NANO_BANANA_PRO_API_URL;
-  const apiKey = process.env.NANO_BANANA_PRO_API_KEY;
+  const apiKey = process.env.NANO_BANANA_PRO_API_KEY || process.env.GEMINI_API_KEY;
+  const model = process.env.NANO_BANANA_PRO_MODEL || "gemini-3-pro-image-preview";
+  const imageSize = (process.env.NANO_BANANA_PRO_IMAGE_SIZE || "2K").toUpperCase();
+  const aspectRatio = process.env.NANO_BANANA_PRO_ASPECT_RATIO || "16:9";
+  const apiUrl =
+    process.env.NANO_BANANA_PRO_API_URL ||
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
   const outDir = storage.assetsDir(tripId);
   await fs.mkdir(outDir, { recursive: true });
 
-  if (apiUrl && apiKey) {
-    // Generic/placeholder integration; adjust to your API's expected schema.
-    const prompt = `Generate a single map-style image that visualizes this trip itinerary as a route. Trip: ${tripName}. Destinations in order: ${destinations.join(" -> ")}. Dark theme.`;
+  if (apiKey) {
+    const prompt = [
+      "Create a single 16:9 map-style illustration that visualizes this trip itinerary as a route.",
+      `Trip: ${tripName}.`,
+      `Destinations in order: ${destinations.join(" -> ")}.`,
+      "Dark theme, crisp labels, subtle route line, minimal UI clutter.",
+    ].join(" ");
     const resp = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        "x-goog-api-key": apiKey,
       },
-      body: JSON.stringify({ prompt, output_format: "png", width: 1200, height: 675 }),
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseModalities: ["TEXT", "IMAGE"],
+          imageConfig: { imageSize, aspectRatio },
+        },
+      }),
     });
     if (!resp.ok) {
-      throw new Error(`Nano Banana Pro request failed (${resp.status})`);
+      const detail = await resp.text().catch(() => resp.statusText);
+      throw new Error(`Nano Banana Pro request failed (${resp.status}): ${detail}`);
     }
-    const buf = Buffer.from(await resp.arrayBuffer());
-    const assetPath = path.join(outDir, "itinerary-map.png");
+    const payload: any = await resp.json();
+    const parts = payload?.candidates?.[0]?.content?.parts ?? [];
+    const inline = parts.find((part: any) => part?.inlineData?.data || part?.inline_data?.data);
+    const data = inline?.inlineData?.data || inline?.inline_data?.data;
+    const mimeType = inline?.inlineData?.mimeType || inline?.inline_data?.mime_type || "image/png";
+    if (!data || typeof data !== "string") {
+      throw new Error("Nano Banana Pro response did not include image data.");
+    }
+    const buf = Buffer.from(data, "base64");
+    const ext = mimeType.includes("jpeg")
+      ? "jpg"
+      : mimeType.includes("webp")
+        ? "webp"
+        : mimeType.includes("png")
+          ? "png"
+          : "png";
+    const assetPath = path.join(outDir, `itinerary-map.${ext}`);
     await fs.writeFile(assetPath, buf);
-    return { assetPath, assetUrl: `/api/trips/${tripId}/assets/itinerary-map.png` };
+    return { assetPath, assetUrl: `/api/trips/${tripId}/assets/itinerary-map.${ext}` };
   }
 
   const svg = generateFallbackTripMapSvg(tripName, destinations);
@@ -65,8 +96,12 @@ export async function ensureMapReferencedInItinerary(tripId: string, assetUrl: s
   const itinerary = await storage.readItinerary(tripId);
   const marker = "![Trip map]";
   const line = `${marker}(${assetUrl})`;
-  if (!itinerary.includes(marker)) {
-    await storage.writeItinerary(tripId, `${line}\n\n${itinerary}`);
+  if (itinerary.includes(marker)) {
+    const next = itinerary.replace(/!\[Trip map\]\([^)]+\)/, line);
+    if (next !== itinerary) {
+      await storage.writeItinerary(tripId, next);
+    }
+    return;
   }
+  await storage.writeItinerary(tripId, `${line}\n\n${itinerary}`);
 }
-

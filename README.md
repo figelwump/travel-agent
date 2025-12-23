@@ -47,11 +47,16 @@ DISABLE_AUTH=true
 
 ## Generated trip map image
 
-The itinerary pane includes a “Generate map” button. If configured, the server will call a Nano Banana Pro API to generate a trip-wide map image; otherwise it generates a simple SVG placeholder.
+The itinerary pane includes a “Generate map” button. If configured, the server will call the Nano Banana Pro (Gemini image) API to generate a trip-wide map image; otherwise it generates a simple SVG placeholder.
 
 Set:
-- `NANO_BANANA_PRO_API_URL`
-- `NANO_BANANA_PRO_API_KEY`
+- `NANO_BANANA_PRO_API_KEY` (or `GEMINI_API_KEY`)
+
+Optional:
+- `NANO_BANANA_PRO_MODEL` (default: `gemini-3-pro-image-preview`)
+- `NANO_BANANA_PRO_IMAGE_SIZE` (default: `2K`, options: `1K`, `2K`, `4K`)
+- `NANO_BANANA_PRO_ASPECT_RATIO` (default: `16:9`)
+- `NANO_BANANA_PRO_API_URL` (override the Gemini endpoint)
 
 ## Notes
 
