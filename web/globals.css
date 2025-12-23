@@ -814,6 +814,12 @@
   line-height: 1.5;
   resize: none;
   outline: none;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.chat-textarea::-webkit-scrollbar {
+  display: none;
 }
 
 .chat-textarea::placeholder {
