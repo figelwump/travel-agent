@@ -520,23 +520,6 @@
   font-weight: 600;
 }
 
-.trip-pill.active::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(
-    45deg,
-    transparent 40%,
-    hsl(0 0% 100% / 0.15) 50%,
-    transparent 60%
-  );
-  animation: shimmer 3s infinite;
-  background-size: 200% 100%;
-}
-
 .trip-pill.add-trip {
   padding: 0.5rem 0.875rem;
   background: transparent;
