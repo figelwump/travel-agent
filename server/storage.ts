@@ -1,5 +1,6 @@
 import * as fs from "fs/promises";
 import * as path from "path";
+import * as nanoBanana from "./nano-banana";
 
 export type Trip = {
   id: string;
@@ -204,8 +205,10 @@ export async function toggleTodoAtLine(tripId: string, line1Based: number): Prom
   const idx = line1Based - 1;
   if (idx < 0 || idx >= lines.length) return { updated: false, content };
   const line = lines[idx];
-  if (line.includes("- [ ]")) lines[idx] = line.replace("- [ ]", "- [x]");
-  else if (line.includes("- [x]")) lines[idx] = line.replace("- [x]", "- [ ]");
+  const unchecked = /^(\s*)([-*+]|\d+\.)\s+\[ \]/;
+  const checked = /^(\s*)([-*+]|\d+\.)\s+\[[xX]\]/;
+  if (unchecked.test(line)) lines[idx] = line.replace(unchecked, "$1$2 [x]");
+  else if (checked.test(line)) lines[idx] = line.replace(checked, "$1$2 [ ]");
   else return { updated: false, content };
   const next = lines.join("\n");
   await writeItinerary(tripId, next);
@@ -319,4 +322,66 @@ export function safePathWithin(rootDir: string, relPath: string): string | null 
   const normalizedRoot = path.resolve(rootDir);
   if (!resolved.startsWith(normalizedRoot + path.sep) && resolved !== normalizedRoot) return null;
   return resolved;
+}
+
+function generateFallbackTripMapSvg(tripName: string, destinations: string[]): string {
+  const escaped = (s: string) => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  const items = destinations
+    .slice(0, 12)
+    .map(
+      (d, i) =>
+        `<text x="24" y="${80 + i * 22}" fill="#f6e7c7" font-size="14" font-family="monospace">${i + 1}. ${escaped(d)}</text>`,
+    )
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675">
+  <rect width="1200" height="675" fill="#0b0c10"/>
+  <rect x="20" y="20" width="1160" height="635" fill="#12141c" stroke="#b0892e" stroke-width="2"/>
+  <text x="24" y="52" fill="#f6e7c7" font-size="22" font-family="serif" font-style="italic">${escaped(tripName)} — Trip Map (placeholder)</text>
+  <text x="24" y="74" fill="#cdbf9a" font-size="12" font-family="monospace">Set NANO_BANANA_PRO_* env vars to enable generated maps</text>
+  ${items}
+</svg>`;
+}
+
+export async function generateTripMap(
+  tripId: string,
+  destinations: string[],
+): Promise<{ assetPath: string; assetUrl: string }> {
+  const trip = await getTrip(tripId);
+  const tripName = trip?.name ?? tripId;
+  const outDir = assetsDir(tripId);
+  await fs.mkdir(outDir, { recursive: true });
+
+  if (nanoBanana.isConfigured()) {
+    const prompt = [
+      "Create a single 16:9 map-style illustration that visualizes this trip itinerary as a route.",
+      `Trip: ${tripName}.`,
+      `Destinations in order: ${destinations.join(" -> ")}.`,
+      "Dark theme, crisp labels, subtle route line, minimal UI clutter.",
+    ].join(" ");
+
+    const result = await nanoBanana.generateImage({ prompt, aspectRatio: "16:9" });
+    const assetPath = path.join(outDir, `itinerary-map.${result.extension}`);
+    await fs.writeFile(assetPath, result.buffer);
+    return { assetPath, assetUrl: `/api/trips/${tripId}/assets/itinerary-map.${result.extension}` };
+  }
+
+  const svg = generateFallbackTripMapSvg(tripName, destinations);
+  const assetPath = path.join(outDir, "itinerary-map.svg");
+  await fs.writeFile(assetPath, svg, "utf8");
+  return { assetPath, assetUrl: `/api/trips/${tripId}/assets/itinerary-map.svg` };
+}
+
+export async function ensureMapReferencedInItinerary(tripId: string, assetUrl: string): Promise<void> {
+  const itinerary = await readItinerary(tripId);
+  const marker = "![Trip map]";
+  const line = `${marker}(${assetUrl})`;
+  if (itinerary.includes(marker)) {
+    const next = itinerary.replace(/!\[Trip map\]\([^)]+\)/, line);
+    if (next !== itinerary) {
+      await writeItinerary(tripId, next);
+    }
+    return;
+  }
+  await writeItinerary(tripId, `${line}\n\n${itinerary}`);
 }

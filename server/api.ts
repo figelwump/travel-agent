@@ -2,7 +2,6 @@ import * as storage from "./storage";
 import { createHeaders, jsonResponse, textResponse } from "./http";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { generateTripMapAsset, ensureMapReferencedInItinerary } from "./map-generator";
 
 type HeaderCtx = Parameters<typeof createHeaders>[1];
 
@@ -178,8 +177,8 @@ export async function handleApiRequest(req: Request, url: URL, ctx?: HeaderCtx):
   if (segments[3] === "generate-map" && segments.length === 4 && req.method === "POST") {
     const body = await parseJson(req);
     const destinations = Array.isArray(body?.destinations) ? body.destinations.filter((d: any) => typeof d === "string") : [];
-    const { assetUrl } = await generateTripMapAsset(tripId, destinations);
-    await ensureMapReferencedInItinerary(tripId, assetUrl);
+    const { assetUrl } = await storage.generateTripMap(tripId, destinations);
+    await storage.ensureMapReferencedInItinerary(tripId, assetUrl);
     return jsonResponse({ assetUrl }, 200, ctx);
   }
 

@@ -2,7 +2,6 @@ import type { WSClient } from "./ws-types";
 import { AgentClient } from "../agentsdk/agent-client";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import * as storage from "./storage";
-import { ensureMapReferencedInItinerary, generateTripMapAsset } from "./map-generator";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -228,8 +227,8 @@ export class ConversationSession {
       }
 
       if (destinations.length > 0) {
-        const { assetUrl } = await generateTripMapAsset(this.tripId, destinations);
-        await ensureMapReferencedInItinerary(this.tripId, assetUrl);
+        const { assetUrl } = await storage.generateTripMap(this.tripId, destinations);
+        await storage.ensureMapReferencedInItinerary(this.tripId, assetUrl);
         this.broadcast({ type: "itinerary_updated", tripId: this.tripId });
       }
     }
