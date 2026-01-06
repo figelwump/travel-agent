@@ -90,7 +90,6 @@ export function ItineraryPane({
 }: ItineraryPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const todoRenderIndexRef = useRef(0);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(markdown);
   const [selection, setSelection] = useState<{ text: string; x: number; y: number } | null>(null);
@@ -119,13 +118,21 @@ export function ItineraryPane({
 
   const canInteract = Boolean(tripId && credentials);
 
-  const todoLineNumbers = useMemo(() => {
+  // Map checkbox text content to line numbers for reliable lookups.
+  // Render order from ReactMarkdown can differ from source order when
+  // checkboxes are inside HTML blocks (like <details>).
+  const todoTextToLine = useMemo(() => {
     const lines = markdown.split('\n');
-    const out: number[] = [];
+    const map = new Map<string, number>();
+    const todoRegex = /^\s*(?:[-*+]|\d+\.)\s+\[[ xX]\]\s+(.+)$/;
     for (let i = 0; i < lines.length; i++) {
-      if (/^\s*-\s+\[[ xX]\]\s+/.test(lines[i])) out.push(i + 1); // 1-based
+      const match = lines[i].match(todoRegex);
+      if (match) {
+        const text = match[1].trim();
+        if (!map.has(text)) map.set(text, i + 1); // 1-based, first occurrence wins
+      }
     }
-    return out;
+    return map;
   }, [markdown]);
 
   const handleToggleTodoLine = async (line1Based: number) => {
@@ -197,9 +204,6 @@ export function ItineraryPane({
       },
     } as any;
   }, []);
-
-  // Reset render counter so checkbox order matches markdown order.
-  todoRenderIndexRef.current = 0;
 
   const MarkdownImage = ({ node, ...props }: any) => {
     const [failed, setFailed] = useState(false);
@@ -359,13 +363,17 @@ export function ItineraryPane({
                 img: MarkdownImage,
                 input: (props: any) => {
                   if (props.type !== 'checkbox') return <input {...props} />;
-                  const idx = todoRenderIndexRef.current++;
-                  const line = todoLineNumbers[idx];
                   return (
                     <input
                       {...props}
                       disabled={false}
                       onChange={(e) => {
+                        // Find the parent list item and get its text content
+                        const listItem = e.target.closest('li');
+                        if (!listItem) return;
+                        const text = listItem.textContent?.trim();
+                        if (!text) return;
+                        const line = todoTextToLine.get(text);
                         if (typeof line === 'number') handleToggleTodoLine(line);
                       }}
                     />
