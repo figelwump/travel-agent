@@ -20,7 +20,7 @@ export interface GeneratedImage {
 
 function getConfig(): NanoBananaConfig {
   const apiKey = process.env.NANO_BANANA_PRO_API_KEY || process.env.GEMINI_API_KEY;
-  const model = process.env.NANO_BANANA_PRO_MODEL || "gemini-2.0-flash-preview-image-generation";
+  const model = process.env.NANO_BANANA_PRO_MODEL || "gemini-3-pro-image-preview";
   const apiUrl =
     process.env.NANO_BANANA_PRO_API_URL ||
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;

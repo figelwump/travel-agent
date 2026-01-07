@@ -88,7 +88,7 @@ Auth:
 
 Image generation (optional):
 - `NANO_BANANA_PRO_API_KEY` or `GEMINI_API_KEY`
-- `NANO_BANANA_PRO_MODEL` (default: `gemini-2.0-flash-preview-image-generation`)
+- `NANO_BANANA_PRO_MODEL` (default: `gemini-3-pro-image-preview`)
 
 Other:
 - `PORT` (default: 3000)
