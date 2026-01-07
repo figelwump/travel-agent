@@ -88,6 +88,9 @@ const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [draftsByTrip, setDraftsByTrip] = useState<Record<string, string>>({});
   const [draftHeightsByTrip, setDraftHeightsByTrip] = useState<Record<string, number>>({});
+  const [showNewTripModal, setShowNewTripModal] = useState(false);
+  const [newTripName, setNewTripName] = useState('');
+  const newTripInputRef = useRef<HTMLInputElement>(null);
 
   const activeDraft = useMemo(() => {
     if (!activeTripId) return '';
@@ -485,9 +488,17 @@ const App: React.FC = () => {
 
   const canSend = Boolean(isConnected && !isLoading && activeTripId && activeConversationId);
 
-  const handleCreateTrip = async () => {
-    const name = prompt('Trip name (e.g., "Iceland"):');
+  const handleCreateTrip = () => {
+    setNewTripName('');
+    setShowNewTripModal(true);
+    // Focus input after modal renders
+    setTimeout(() => newTripInputRef.current?.focus(), 50);
+  };
+
+  const handleNewTripSubmit = async () => {
+    const name = newTripName.trim();
     if (!name) return;
+    setShowNewTripModal(false);
     const res = await apiFetch<Trip>('/api/trips', { method: 'POST', body: JSON.stringify({ name }) }, credentials);
     if (!res.ok) {
       alert(`Failed to create trip: ${res.error}`);
@@ -582,10 +593,14 @@ const App: React.FC = () => {
         `- Output the FULL updated itinerary as a single fenced block with language \`itinerary-md\`.`,
         `- Immediately after the code block, include: <!-- travelagent:save-itinerary -->`,
         `- Also include: <!-- travelagent:generate-map -->`,
-        `- Use collapsible day sections with <details><summary>…</summary> … </details> where helpful.`,
-        `- Add Google Maps links per destination (and per day when useful).`,
-        `- Add 1–2 representative images per destination section.`,
+        `- Use collapsible day sections with <details><summary>…</summary> … </details> for each day.`,
+        `- ALL activities within time periods (Morning/Afternoon/Evening) MUST be bullet list items.`,
+        `- EVERY linkable location MUST have a Google Maps link: airports, beaches, parks, hotels, restaurants, attractions.`,
+        `- Include 2–3 images per day showing key locations/activities (use stable Wikimedia URLs).`,
         `- Include TODOs as task list items (- [ ] / - [x]) for anything the user still needs to decide/book.`,
+        `- EVERY day section MUST include:`,
+        `  - #### Accommodation — hotel name (linked), address, phone, confirmation. If unknown, add a TODO.`,
+        `  - #### Tickets & Reservations — activity tickets, restaurant reservations. If none, add relevant TODOs.`,
         ``,
         `If anything is still ambiguous, ask me the minimum set of questions first.`,
       ].join('\n')
@@ -814,6 +829,81 @@ const App: React.FC = () => {
           )}
         </main>
       </div>
+
+      {/* New Trip Modal */}
+      {showNewTripModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0, 0, 0, 0.5)' }}
+          onClick={() => setShowNewTripModal(false)}
+        >
+          <div
+            className="rounded-xl shadow-2xl p-6 w-full max-w-md mx-4"
+            style={{ background: 'hsl(var(--bg-secondary))' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              className="text-xl font-semibold mb-4"
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                color: 'hsl(var(--text-primary))'
+              }}
+            >
+              Plan a new trip
+            </h2>
+            <p
+              className="text-sm mb-4"
+              style={{ color: 'hsl(var(--text-secondary))' }}
+            >
+              What destination are you dreaming of?
+            </p>
+            <input
+              ref={newTripInputRef}
+              type="text"
+              value={newTripName}
+              onChange={(e) => setNewTripName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleNewTripSubmit();
+                if (e.key === 'Escape') setShowNewTripModal(false);
+              }}
+              placeholder="e.g., Iceland, Japan, Paris..."
+              className="w-full px-4 py-3 rounded-lg mb-4 text-base"
+              style={{
+                background: 'hsl(var(--bg-primary))',
+                border: '1px solid hsl(var(--border-medium))',
+                color: 'hsl(var(--text-primary))',
+                outline: 'none',
+              }}
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowNewTripModal(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium"
+                style={{
+                  background: 'hsl(var(--bg-tertiary))',
+                  color: 'hsl(var(--text-secondary))',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleNewTripSubmit}
+                disabled={!newTripName.trim()}
+                className="btn-primary px-4 py-2 text-sm font-medium"
+                style={{
+                  opacity: newTripName.trim() ? 1 : 0.5,
+                  cursor: newTripName.trim() ? 'pointer' : 'default',
+                }}
+              >
+                Start Planning
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

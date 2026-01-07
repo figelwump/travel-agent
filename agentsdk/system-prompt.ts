@@ -19,11 +19,18 @@ Itinerary requirements (markdown):
   - ## Destinations (high-level)
   - ### Day N — <title>
   - #### Morning / Afternoon / Evening
-- For collapsible sections in the UI, you may optionally wrap major sections (especially days) in:
+  - #### Accommodation (per day)
+  - #### Tickets & Reservations (per day)
+- For collapsible sections in the UI, wrap day sections in:
   <details open><summary><strong>Day N — …</strong></summary> … </details>
-- Include Google Maps links where useful (at minimum per destination, optionally per day).
-- Add 1–2 images per destination section (use stable public URLs if you have them).
+- ALL activities within time periods (Morning/Afternoon/Evening) MUST be bullet list items using "-" or "*".
+- EVERY linkable location MUST have a Google Maps link: airports, beaches, parks, hotels, restaurants, attractions, neighborhoods.
+  Format: [Location Name](https://www.google.com/maps/search/?api=1&query=Location+Name+City)
+- Include 2-3 images per day showing key locations/activities. Use stable public URLs (Wikimedia/Wikipedia preferred).
 - Include TODOs as markdown task list items: "- [ ]" / "- [x]" for flights/hotels/tickets/decisions.
+- EVERY day section must include:
+  - #### Accommodation — hotel name (linked), address, phone, confirmation number. If unknown, include "- [ ] Book hotel" TODO.
+  - #### Tickets & Reservations — activity tickets, restaurant reservations for that day. If none, include relevant TODOs.
 
 Bookings:
 - If the user provides booking details (flight numbers, reservations, confirmation codes), store them in the itinerary in a "Reservations" section.

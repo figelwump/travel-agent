@@ -1,8 +1,38 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+
+/**
+ * Pre-process markdown to convert content inside <details> tags to HTML.
+ * This is needed because remark doesn't parse markdown inside raw HTML blocks.
+ */
+function preprocessDetailsContent(md: string): string {
+  // Match <details...>...</details> blocks
+  return md.replace(
+    /(<details[^>]*>)([\s\S]*?)(<\/details>)/gi,
+    (match, openTag, content, closeTag) => {
+      // Process the content inside details (but preserve <summary> tags)
+      const processed = content
+        // Convert **bold** to <strong>
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        // Convert bullet lists: lines starting with "- " become <ul><li>
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        // Wrap consecutive <li> items in <ul>
+        .replace(/(<li>[\s\S]*?<\/li>)(\n?)(?=<li>|$)/g, '$1$2')
+        // Group consecutive li items into ul
+        .replace(/((?:<li>[\s\S]*?<\/li>\n?)+)/g, '<ul>$1</ul>')
+        // Convert [text](url) links
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+        // Convert task list items: - [ ] and - [x]
+        .replace(/<li>\[ \] (.+)<\/li>/g, '<li><input type="checkbox" disabled /> $1</li>')
+        .replace(/<li>\[x\] (.+)<\/li>/gi, '<li><input type="checkbox" checked disabled /> $1</li>');
+
+      return openTag + processed + closeTag;
+    }
+  );
+}
 
 type Credentials = { password: string };
 
@@ -27,10 +57,10 @@ async function apiFetch(
   return { ok: true, text: await res.text() };
 }
 
-// Collapse icon
+// Collapse icon (points right to indicate collapsing the panel)
 const CollapseIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M11 19l-7-7 7-7M18 19l-7-7 7-7" />
+    <path d="M13 5l7 7-7 7M6 5l7 7-7 7" />
   </svg>
 );
 
@@ -205,6 +235,103 @@ export function ItineraryPane({
     } as any;
   }, []);
 
+  // Pre-process markdown to handle content inside <details> tags
+  const processedMarkdown = useMemo(() => {
+    if (!markdown) return '';
+    return preprocessDetailsContent(markdown);
+  }, [markdown]);
+
+  const markdownLines = useMemo(() => processedMarkdown.split('\n'), [processedMarkdown]);
+
+  const headingRanges = useMemo(() => {
+    const headings: Array<{ line: number; level: number }> = [];
+    for (let i = 0; i < markdownLines.length; i += 1) {
+      const match = markdownLines[i].match(/^(#{1,6})\s+(.+)$/);
+      if (!match) continue;
+      headings.push({ line: i + 1, level: match[1].length });
+    }
+    const ranges = new Map<number, { endLine: number }>();
+    for (let i = 0; i < headings.length; i += 1) {
+      const current = headings[i];
+      let endLine = markdownLines.length;
+      for (let j = i + 1; j < headings.length; j += 1) {
+        if (headings[j].level <= current.level) {
+          endLine = headings[j].line - 1;
+          break;
+        }
+      }
+      ranges.set(current.line, { endLine });
+    }
+    return ranges;
+  }, [markdownLines]);
+
+  const getMarkdownSlice = useCallback(
+    (startLine?: number | null, endLine?: number | null) => {
+      if (!startLine || !endLine) return null;
+      const startIdx = Math.max(1, startLine) - 1;
+      const endIdx = Math.min(markdownLines.length, endLine);
+      if (startIdx < 0 || endIdx <= startIdx) return null;
+      const slice = markdownLines.slice(startIdx, endIdx).join('\n').trim();
+      return slice || null;
+    },
+    [markdownLines],
+  );
+
+  const getHeadingSection = useCallback(
+    (line?: number | null) => {
+      if (!line) return null;
+      const range = headingRanges.get(line);
+      return getMarkdownSlice(line, range?.endLine);
+    },
+    [getMarkdownSlice, headingRanges],
+  );
+
+  const renderHeading = (level: 1 | 2 | 3 | 4 | 5 | 6) => {
+    const Tag = `h${level}` as const;
+    return ({ node, children, ...props }: any) => {
+      const line = node?.position?.start?.line as number | undefined;
+      const section = getHeadingSection(line);
+      return (
+        <Tag {...props} className={`itinerary-heading ${props.className || ''}`.trim()}>
+          <span>{children}</span>
+          {section && (
+            <button
+              type="button"
+              className="ask-inline-btn"
+              onClick={() => onAskAboutSelection(section)}
+              title="Ask about this section"
+            >
+              Ask about section
+            </button>
+          )}
+        </Tag>
+      );
+    };
+  };
+
+  const renderListItem = ({ node, children, ...props }: any) => {
+    const line = node?.position?.start?.line as number | undefined;
+    const endLine = node?.position?.end?.line as number | undefined;
+    const isTopLevel = (node?.position?.start?.column ?? 99) <= 3;
+    const isTodo = typeof node?.checked === 'boolean';
+    const item = isTopLevel && !isTodo ? getMarkdownSlice(line, endLine) : null;
+    return (
+      <li {...props} className={`itinerary-list-item ${props.className || ''}`.trim()}>
+        {children}
+        {item && (
+          <button
+            type="button"
+            className="ask-inline-btn"
+            onClick={() => onAskAboutSelection(item)}
+            title="Ask about this item"
+          >
+            Ask about item
+          </button>
+        )}
+      </li>
+    );
+  };
+
   const MarkdownImage = ({ node, ...props }: any) => {
     const [failed, setFailed] = useState(false);
     const src = typeof props.src === 'string' ? withAuthToken(props.src, credentials) : props.src;
@@ -356,11 +483,18 @@ export function ItineraryPane({
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
               components={{
+                h1: renderHeading(1),
+                h2: renderHeading(2),
+                h3: renderHeading(3),
+                h4: renderHeading(4),
+                h5: renderHeading(5),
+                h6: renderHeading(6),
                 a: ({ node, ...props }) => {
                   const href = typeof props.href === 'string' ? withAuthToken(props.href, credentials) : props.href;
                   return <a {...props} href={href} target="_blank" rel="noopener noreferrer" />;
                 },
                 img: MarkdownImage,
+                li: renderListItem,
                 input: (props: any) => {
                   if (props.type !== 'checkbox') return <input {...props} />;
                   return (
@@ -381,7 +515,7 @@ export function ItineraryPane({
                 }
               }}
             >
-              {markdown || '*No itinerary loaded yet.*'}
+              {processedMarkdown || '*No itinerary loaded yet.*'}
             </ReactMarkdown>
           </div>
         )}

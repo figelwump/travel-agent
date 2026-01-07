@@ -974,24 +974,70 @@
 
 .prose-terminal a {
   color: hsl(var(--accent-primary));
-  text-decoration: none;
-  border-bottom: 1px solid hsl(var(--accent-primary) / 0.3);
+  text-decoration: underline;
+  text-decoration-color: hsl(var(--accent-primary) / 0.3);
+  text-underline-offset: 2px;
   transition: all 0.2s ease;
 }
 
 .prose-terminal a:hover {
-  border-bottom-color: hsl(var(--accent-primary));
+  text-decoration-color: hsl(var(--accent-primary));
   text-shadow: 0 0 12px hsl(var(--accent-primary) / 0.3);
 }
 
 .prose-terminal ul,
 .prose-terminal ol {
-  padding-left: 1.5em;
+  padding-left: 2em;
   margin-bottom: 1.25em;
+}
+
+.prose-terminal ul {
+  list-style-type: disc;
+}
+
+.prose-terminal ol {
+  list-style-type: decimal;
 }
 
 .prose-terminal li {
   margin-bottom: 0.375em;
+}
+
+.itinerary-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.itinerary-list-item .ask-inline-btn {
+  margin-left: 0.5rem;
+}
+
+.ask-inline-btn {
+  border: 1px solid hsl(var(--border-subtle));
+  background: hsl(var(--bg-tertiary));
+  color: hsl(var(--text-tertiary));
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0;
+  transition: opacity 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.itinerary-heading:hover .ask-inline-btn,
+.itinerary-list-item:hover .ask-inline-btn {
+  opacity: 1;
+  color: hsl(var(--accent-primary));
+  border-color: hsl(var(--accent-primary) / 0.4);
+}
+
+/* Remove bullet from list items that contain checkboxes (todo items) */
+.prose-terminal li:has(input[type="checkbox"]) {
+  list-style-type: none;
 }
 
 .prose-terminal ul li::marker {
@@ -1085,6 +1131,20 @@
 .prose-terminal details > *:not(summary) {
   padding: 0 1rem;
 }
+
+.prose-terminal details > *:last-child {
+  padding-bottom: 1rem;
+}
+
+/* Indent lists inside details to align with headers - override the general padding */
+.prose-terminal details[open] > ul,
+.prose-terminal details[open] > ol,
+.prose-terminal details > ul,
+.prose-terminal details > ol {
+  padding-left: 2.5em !important;
+  padding-right: 1rem;
+}
+
 
 /* Checkbox styling */
 .prose-terminal input[type="checkbox"] {
