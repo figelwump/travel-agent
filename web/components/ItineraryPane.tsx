@@ -332,6 +332,43 @@ export function ItineraryPane({
     );
   };
 
+  const renderDetails = ({ node, children, ...props }: any) => {
+    const line = node?.position?.start?.line as number | undefined;
+    const endLine = node?.position?.end?.line as number | undefined;
+    const section = getMarkdownSlice(line, endLine);
+    const childrenArray = React.Children.toArray(children);
+    const summaryIndex = childrenArray.findIndex(
+      (child) => React.isValidElement(child) && child.type === 'summary',
+    );
+    if (summaryIndex >= 0 && section) {
+      const summaryEl = childrenArray[summaryIndex] as React.ReactElement;
+      childrenArray[summaryIndex] = React.cloneElement(summaryEl, {
+        children: (
+          <>
+            {summaryEl.props.children}
+            <button
+              type="button"
+              className="ask-inline-btn ask-details-btn"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onAskAboutSelection(section);
+              }}
+              title="Ask about this section"
+            >
+              Ask about day
+            </button>
+          </>
+        ),
+      });
+    }
+    return (
+      <details {...props} className={`itinerary-details ${props.className || ''}`.trim()}>
+        {childrenArray}
+      </details>
+    );
+  };
+
   const MarkdownImage = ({ node, ...props }: any) => {
     const [failed, setFailed] = useState(false);
     const src = typeof props.src === 'string' ? withAuthToken(props.src, credentials) : props.src;
@@ -495,6 +532,7 @@ export function ItineraryPane({
                 },
                 img: MarkdownImage,
                 li: renderListItem,
+                details: renderDetails,
                 input: (props: any) => {
                   if (props.type !== 'checkbox') return <input {...props} />;
                   return (

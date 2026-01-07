@@ -1014,6 +1014,10 @@
   margin-left: 0.5rem;
 }
 
+.itinerary-details .ask-inline-btn {
+  margin-left: 0.5rem;
+}
+
 .ask-inline-btn {
   border: 1px solid hsl(var(--border-subtle));
   background: hsl(var(--bg-tertiary));
@@ -1029,10 +1033,15 @@
 }
 
 .itinerary-heading:hover .ask-inline-btn,
-.itinerary-list-item:hover .ask-inline-btn {
+.itinerary-list-item:hover .ask-inline-btn,
+.itinerary-details summary:hover .ask-inline-btn {
   opacity: 1;
   color: hsl(var(--accent-primary));
   border-color: hsl(var(--accent-primary) / 0.4);
+}
+
+.ask-details-btn {
+  font-size: 0.6rem;
 }
 
 /* Remove bullet from list items that contain checkboxes (todo items) */
