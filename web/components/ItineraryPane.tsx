@@ -176,6 +176,10 @@ export function ItineraryPane({
     () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     []
   );
+  const dateTimeFormatter = useMemo(
+    () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+    []
+  );
   const createdLabel = useMemo(() => {
     if (!tripCreatedAt) return null;
     const d = new Date(tripCreatedAt);
@@ -186,8 +190,8 @@ export function ItineraryPane({
     if (!tripUpdatedAt) return null;
     const d = new Date(tripUpdatedAt);
     if (Number.isNaN(d.getTime())) return null;
-    return dateFormatter.format(d);
-  }, [dateFormatter, tripUpdatedAt]);
+    return dateTimeFormatter.format(d);
+  }, [dateTimeFormatter, tripUpdatedAt]);
 
   useEffect(() => {
     if (!isEditing) setDraft(markdown);
