@@ -27,6 +27,11 @@ Always test bug fixes and feature work using the Playwright MCP before consideri
 4. Interact with the app using `browser_click`, `browser_type`, etc.
 5. Verify the fix/feature works as expected end-to-end
 
+**Important:** The user often runs their own dev server on port 3001. Do NOT kill processes on port 3001. When testing with Playwright:
+- Start a test server on a different port (e.g., `PORT=3002 DISABLE_AUTH=true bun run dev`)
+- Test against that port (e.g., `http://localhost:3002`)
+- Only kill the server you started when done testing
+
 ## Architecture
 
 This is a personal travel planning agent with a Bun server backend and React frontend. The agent uses the Claude Agent SDK to run agentic conversations with tool use.

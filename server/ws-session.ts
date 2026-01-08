@@ -2,6 +2,7 @@ import type { WSClient } from "./ws-types";
 import { AgentClient } from "../agentsdk/agent-client";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import * as storage from "./storage";
+import * as fs from "fs/promises";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -61,6 +62,7 @@ export class ConversationSession {
   private agentClient = new AgentClient();
   private sdkSessionId: string | null = null;
   private partialTextBuffer: string | null = null;
+  private itineraryMtimeBeforeQuery: number | null = null;
 
   constructor({ tripId, conversationId }: ConversationSessionParams) {
     this.tripId = tripId;
@@ -102,6 +104,25 @@ export class ConversationSession {
 
   private broadcastError(error: string) {
     this.broadcast({ type: "error", error, tripId: this.tripId, conversationId: this.conversationId });
+  }
+
+  private async getItineraryMtime(): Promise<number | null> {
+    try {
+      const itineraryPath = `${storage.travelAgentHome()}/trips/${this.tripId}/itinerary.md`;
+      const stat = await fs.stat(itineraryPath);
+      return stat.mtimeMs;
+    } catch {
+      return null;
+    }
+  }
+
+  private async checkAndBroadcastItineraryChange(): Promise<void> {
+    if (this.itineraryMtimeBeforeQuery === null) return;
+    const currentMtime = await this.getItineraryMtime();
+    if (currentMtime !== null && currentMtime !== this.itineraryMtimeBeforeQuery) {
+      this.broadcast({ type: "itinerary_updated", tripId: this.tripId });
+    }
+    this.itineraryMtimeBeforeQuery = null;
   }
 
   private async ensureConversationLoaded(): Promise<void> {
@@ -247,6 +268,9 @@ export class ConversationSession {
     await storage.appendMessage(this.tripId, this.conversationId, userMsg);
     this.broadcast({ type: "user_message", content, tripId: this.tripId, conversationId: this.conversationId });
 
+    // Track itinerary mtime to detect changes made by agent tools
+    this.itineraryMtimeBeforeQuery = await this.getItineraryMtime();
+
     this.queryPromise = (async () => {
       try {
         const ctxPrompt = await this.buildTripContextPrompt();
@@ -313,6 +337,8 @@ export class ConversationSession {
       } else {
         this.broadcast({ type: "result", success: false, error: subtype, tripId: this.tripId, conversationId: this.conversationId });
       }
+      // Check if itinerary was modified by agent tools (Write/Edit)
+      await this.checkAndBroadcastItineraryChange();
       return;
     }
 

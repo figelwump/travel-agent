@@ -28,6 +28,7 @@ interface ChatPanelProps {
   onUploadFiles: (files: FileList) => void;
   tripName: string | null;
   conversationTitle: string | null;
+  textareaRef?: React.RefObject<HTMLTextAreaElement>;
 }
 
 export function ChatPanel({
@@ -43,10 +44,12 @@ export function ChatPanel({
   onUploadFiles,
   tripName,
   conversationTitle,
+  textareaRef: externalTextareaRef,
 }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = externalTextareaRef ?? internalTextareaRef;
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   useEffect(() => { scrollToBottom(); }, [messages.length]);

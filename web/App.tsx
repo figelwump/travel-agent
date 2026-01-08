@@ -78,6 +78,7 @@ const App: React.FC = () => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [hasEverConnected, setHasEverConnected] = useState(false);
   const streamingMessageIdRef = useRef<string | null>(null);
+  const chatTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTripId, setActiveTripId] = useState<string | null>(null);
@@ -581,6 +582,8 @@ const App: React.FC = () => {
     setDraftForActiveTrip(`I'm looking at this itinerary excerpt:\n\n\`\`\`markdown\n${selectionMarkdown.trim()}\n\`\`\`\n\nMy question: `);
     // Subscribe ASAP (before sending anything).
     sendMessage({ type: 'subscribe', tripId: activeTripId, conversationId: res.data.id });
+    // Focus the textarea so user can start typing immediately
+    setTimeout(() => chatTextareaRef.current?.focus(), 0);
   };
 
   const handleUpdateItineraryRequest = () => {
@@ -795,6 +798,7 @@ const App: React.FC = () => {
               disabled={!canSend}
               tripName={activeTrip?.name ?? null}
               conversationTitle={activeConversation?.title ?? null}
+              textareaRef={chatTextareaRef}
             />
           </div>
 

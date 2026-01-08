@@ -14,20 +14,70 @@ function preprocessDetailsContent(md: string): string {
     /(<details[^>]*>)([\s\S]*?)(<\/details>)/gi,
     (match, openTag, content, closeTag) => {
       // Process the content inside details (but preserve <summary> tags)
-      const processed = content
+      let processed = content
         // Convert **bold** to <strong>
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-        // Convert bullet lists: lines starting with "- " become <ul><li>
-        .replace(/^- (.+)$/gm, '<li>$1</li>')
-        // Wrap consecutive <li> items in <ul>
-        .replace(/(<li>[\s\S]*?<\/li>)(\n?)(?=<li>|$)/g, '$1$2')
-        // Group consecutive li items into ul
-        .replace(/((?:<li>[\s\S]*?<\/li>\n?)+)/g, '<ul>$1</ul>')
         // Convert [text](url) links
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
-        // Convert task list items: - [ ] and - [x]
-        .replace(/<li>\[ \] (.+)<\/li>/g, '<li><input type="checkbox" disabled /> $1</li>')
-        .replace(/<li>\[x\] (.+)<\/li>/gi, '<li><input type="checkbox" checked disabled /> $1</li>');
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+      // Process lists with proper nesting
+      const lines = processed.split('\n');
+      const result: string[] = [];
+      const listStack: number[] = []; // Track indent levels of open lists
+
+      for (const line of lines) {
+        // Match list items with any indentation level
+        const listMatch = line.match(/^(\s*)([-*+])\s+(.+)$/);
+
+        if (listMatch) {
+          const [, indent, , itemContent] = listMatch;
+          const indentLevel = indent.length;
+
+          // Close lists that are deeper than current level
+          while (listStack.length > 0 && listStack[listStack.length - 1] >= indentLevel) {
+            const closedLevel = listStack.pop()!;
+            // Only close if we're actually going back up (not at same level)
+            if (closedLevel > indentLevel) {
+              result.push('</ul>');
+            } else {
+              // Same level, put it back
+              listStack.push(closedLevel);
+              break;
+            }
+          }
+
+          // Open a new nested list if this is deeper
+          if (listStack.length === 0 || indentLevel > listStack[listStack.length - 1]) {
+            result.push('<ul>');
+            listStack.push(indentLevel);
+          }
+
+          // Convert task list checkboxes
+          let finalContent = itemContent;
+          if (finalContent.startsWith('[ ] ')) {
+            finalContent = `<input type="checkbox" disabled /> ${finalContent.slice(4)}`;
+          } else if (/^\[[xX]\] /.test(finalContent)) {
+            finalContent = `<input type="checkbox" checked disabled /> ${finalContent.slice(4)}`;
+          }
+
+          result.push(`<li>${finalContent}</li>`);
+        } else {
+          // Not a list item - close all open lists
+          while (listStack.length > 0) {
+            listStack.pop();
+            result.push('</ul>');
+          }
+          result.push(line);
+        }
+      }
+
+      // Close any remaining open lists
+      while (listStack.length > 0) {
+        listStack.pop();
+        result.push('</ul>');
+      }
+
+      processed = result.join('\n');
 
       return openTag + processed + closeTag;
     }
@@ -178,6 +228,21 @@ export function ItineraryPane({
     setIsSaving(false);
     if (!res.ok) {
       alert(`Save failed: ${res.error}`);
+      return;
+    }
+    setIsEditing(false);
+    onRefresh();
+  };
+
+  const handleDeleteItinerary = async () => {
+    if (!tripId || !credentials) return;
+    const okToDelete = confirm('Delete this itinerary? This cannot be undone.');
+    if (!okToDelete) return;
+    setIsSaving(true);
+    const res = await apiFetch(`/api/trips/${tripId}/itinerary`, { method: 'DELETE' }, credentials);
+    setIsSaving(false);
+    if (!res.ok) {
+      alert(`Delete failed: ${res.error}`);
       return;
     }
     setIsEditing(false);
@@ -457,6 +522,21 @@ export function ItineraryPane({
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
               </svg>
             )}
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={handleDeleteItinerary}
+            disabled={!canInteract || isSaving}
+            title="Delete itinerary"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 6h18" />
+              <path d="M8 6V4h8v2" />
+              <path d="M19 6l-1 14H6L5 6" />
+              <path d="M10 11v6" />
+              <path d="M14 11v6" />
+            </svg>
           </button>
           {isEditing && (
             <button type="button" className="btn-primary px-3 py-1.5 text-xs" onClick={handleSave} disabled={!canInteract || isSaving}>

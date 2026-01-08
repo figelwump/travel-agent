@@ -190,12 +190,25 @@ export async function ensureItinerary(tripId: string, tripName?: string): Promis
 }
 
 export async function readItinerary(tripId: string): Promise<string> {
-  await ensureItinerary(tripId);
-  return fs.readFile(itineraryPath(tripId), "utf8");
+  try {
+    return await fs.readFile(itineraryPath(tripId), "utf8");
+  } catch (err: any) {
+    if (err?.code === "ENOENT") return "";
+    throw err;
+  }
 }
 
 export async function writeItinerary(tripId: string, content: string): Promise<void> {
   await writeFileAtomic(itineraryPath(tripId), content);
+  await touchTrip(tripId);
+}
+
+export async function deleteItinerary(tripId: string): Promise<void> {
+  try {
+    await fs.unlink(itineraryPath(tripId));
+  } catch (err: any) {
+    if (err?.code !== "ENOENT") throw err;
+  }
   await touchTrip(tripId);
 }
 

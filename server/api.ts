@@ -79,6 +79,10 @@ export async function handleApiRequest(req: Request, url: URL, ctx?: HeaderCtx):
       await storage.writeItinerary(tripId, body.content);
       return ok(ctx);
     }
+    if (req.method === "DELETE") {
+      await storage.deleteItinerary(tripId);
+      return ok(ctx);
+    }
     return notFound(ctx);
   }
 
