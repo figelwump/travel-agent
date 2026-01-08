@@ -1010,39 +1010,6 @@
   gap: 0.5rem;
 }
 
-.itinerary-list-item .ask-inline-btn {
-  margin-left: 0.5rem;
-}
-
-.itinerary-details .ask-inline-btn {
-  margin-left: 0.5rem;
-}
-
-.ask-inline-btn {
-  border: 1px solid hsl(var(--border-subtle));
-  background: hsl(var(--bg-tertiary));
-  color: hsl(var(--text-tertiary));
-  font-size: 0.65rem;
-  padding: 0.15rem 0.4rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0;
-  transition: opacity 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-
-.itinerary-heading:hover .ask-inline-btn,
-.itinerary-list-item:hover .ask-inline-btn,
-.itinerary-details summary:hover .ask-inline-btn {
-  opacity: 1;
-  color: hsl(var(--accent-primary));
-  border-color: hsl(var(--accent-primary) / 0.4);
-}
-
-.ask-details-btn {
-  font-size: 0.6rem;
-}
 
 /* Remove bullet from list items that contain checkboxes (todo items) */
 .prose-terminal li:has(input[type="checkbox"]) {

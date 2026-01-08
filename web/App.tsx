@@ -570,48 +570,6 @@ const App: React.FC = () => {
     handleSendUserText(msg + `\n\n(Stored in ~/.travelagent/trips/${activeTripId}/uploads/)`);
   };
 
-  const handleAskAboutSelection = async (selectionMarkdown: string) => {
-    if (!activeTripId) return;
-    const res = await apiFetch<Conversation>(`/api/trips/${activeTripId}/conversations`, { method: 'POST', body: JSON.stringify({ title: 'Question about itinerary' }) }, credentials);
-    if (!res.ok) {
-      alert(`Failed to create chat: ${res.error}`);
-      return;
-    }
-    await refreshConversations(activeTripId);
-    setActiveConversationId(res.data.id);
-    setMessages([]);
-    // Prefill draft with the selection context; user can type a question after.
-    setDraftForActiveTrip(`I'm looking at this itinerary excerpt:\n\n\`\`\`markdown\n${selectionMarkdown.trim()}\n\`\`\`\n\nMy question: `);
-    // Subscribe ASAP (before sending anything).
-    sendMessage({ type: 'subscribe', tripId: activeTripId, conversationId: res.data.id });
-    // Focus the textarea so user can start typing immediately
-    setTimeout(() => chatTextareaRef.current?.focus(), 0);
-  };
-
-  const handleUpdateItineraryRequest = () => {
-    if (!activeTripId || !activeConversationId) return;
-    handleSendUserText(
-      [
-        `Please update the itinerary now and save it.`,
-        ``,
-        `Requirements:`,
-        `- Output the FULL updated itinerary as a single fenced block with language \`itinerary-md\`.`,
-        `- Immediately after the code block, include: <!-- travelagent:save-itinerary -->`,
-        `- Also include: <!-- travelagent:generate-map -->`,
-        `- Use collapsible day sections with <details><summary>…</summary> … </details> for each day.`,
-        `- ALL activities within time periods (Morning/Afternoon/Evening) MUST be bullet list items.`,
-        `- EVERY linkable location MUST have a Google Maps link: airports, beaches, parks, hotels, restaurants, attractions.`,
-        `- Include 2–3 images per day showing key locations/activities (use stable Wikimedia URLs).`,
-        `- Include TODOs as task list items (- [ ] / - [x]) for anything the user still needs to decide/book.`,
-        `- EVERY day section MUST include:`,
-        `  - #### Accommodation — hotel name (linked), address, phone, confirmation. If unknown, add a TODO.`,
-        `  - #### Tickets & Reservations — activity tickets, restaurant reservations. If none, add relevant TODOs.`,
-        ``,
-        `If anything is still ambiguous, ask me the minimum set of questions first.`,
-      ].join('\n')
-    );
-  };
-
   return (
     <div className="flex flex-col h-screen" style={{ background: 'hsl(var(--bg-primary))' }}>
       {/* Top header with branding and trip pills */}
@@ -677,18 +635,6 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Right: Update itinerary button */}
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              type="button"
-              className="btn-primary px-4 py-2"
-              onClick={handleUpdateItineraryRequest}
-              disabled={!canSend}
-              title="Generate updated itinerary"
-            >
-              Update Itinerary
-            </button>
-          </div>
         </div>
 
         {connectionError && (
@@ -812,7 +758,6 @@ const App: React.FC = () => {
                 credentials={credentials}
                 markdown={itineraryMarkdown}
                 onRefresh={refreshItinerary}
-                onAskAboutSelection={handleAskAboutSelection}
                 onCollapse={() => setShowItinerary(false)}
                 tripCreatedAt={activeTrip?.createdAt ?? null}
                 tripUpdatedAt={activeTrip?.updatedAt ?? null}

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -119,7 +119,6 @@ interface ItineraryPaneProps {
   credentials: Credentials | null;
   markdown: string;
   onRefresh: () => void;
-  onAskAboutSelection: (selectionMarkdown: string) => void;
   onCollapse?: () => void;
   tripCreatedAt?: string | null;
   tripUpdatedAt?: string | null;
@@ -163,7 +162,6 @@ export function ItineraryPane({
   credentials,
   markdown,
   onRefresh,
-  onAskAboutSelection,
   onCollapse,
   tripCreatedAt,
   tripUpdatedAt,
@@ -172,7 +170,6 @@ export function ItineraryPane({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(markdown);
-  const [selection, setSelection] = useState<{ text: string; x: number; y: number } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingMap, setIsGeneratingMap] = useState(false);
   const dateFormatter = useMemo(
@@ -279,13 +276,6 @@ export function ItineraryPane({
     onRefresh();
   };
 
-  const selectionLabel = useMemo(() => {
-    const t = selection?.text?.trim() ?? '';
-    if (!t) return null;
-    const short = t.length > 60 ? t.slice(0, 60) + '…' : t;
-    return short.replace(/\s+/g, ' ');
-  }, [selection]);
-
   const sanitizeSchema = useMemo(() => {
     // Allow a minimal set of HTML for collapsible sections (<details>/<summary>).
     // Everything else stays on the default safe list.
@@ -306,127 +296,27 @@ export function ItineraryPane({
     return preprocessDetailsContent(markdown);
   }, [markdown]);
 
-  const markdownLines = useMemo(() => processedMarkdown.split('\n'), [processedMarkdown]);
-
-  const headingRanges = useMemo(() => {
-    const headings: Array<{ line: number; level: number }> = [];
-    for (let i = 0; i < markdownLines.length; i += 1) {
-      const match = markdownLines[i].match(/^(#{1,6})\s+(.+)$/);
-      if (!match) continue;
-      headings.push({ line: i + 1, level: match[1].length });
-    }
-    const ranges = new Map<number, { endLine: number }>();
-    for (let i = 0; i < headings.length; i += 1) {
-      const current = headings[i];
-      let endLine = markdownLines.length;
-      for (let j = i + 1; j < headings.length; j += 1) {
-        if (headings[j].level <= current.level) {
-          endLine = headings[j].line - 1;
-          break;
-        }
-      }
-      ranges.set(current.line, { endLine });
-    }
-    return ranges;
-  }, [markdownLines]);
-
-  const getMarkdownSlice = useCallback(
-    (startLine?: number | null, endLine?: number | null) => {
-      if (!startLine || !endLine) return null;
-      const startIdx = Math.max(1, startLine) - 1;
-      const endIdx = Math.min(markdownLines.length, endLine);
-      if (startIdx < 0 || endIdx <= startIdx) return null;
-      const slice = markdownLines.slice(startIdx, endIdx).join('\n').trim();
-      return slice || null;
-    },
-    [markdownLines],
-  );
-
-  const getHeadingSection = useCallback(
-    (line?: number | null) => {
-      if (!line) return null;
-      const range = headingRanges.get(line);
-      return getMarkdownSlice(line, range?.endLine);
-    },
-    [getMarkdownSlice, headingRanges],
-  );
-
   const renderHeading = (level: 1 | 2 | 3 | 4 | 5 | 6) => {
     const Tag = `h${level}` as const;
     return ({ node, children, ...props }: any) => {
-      const line = node?.position?.start?.line as number | undefined;
-      const section = getHeadingSection(line);
       return (
         <Tag {...props} className={`itinerary-heading ${props.className || ''}`.trim()}>
           <span>{children}</span>
-          {section && (
-            <button
-              type="button"
-              className="ask-inline-btn"
-              onClick={() => onAskAboutSelection(section)}
-              title="Ask about this section"
-            >
-              Ask about section
-            </button>
-          )}
         </Tag>
       );
     };
   };
 
   const renderListItem = ({ node, children, ...props }: any) => {
-    const line = node?.position?.start?.line as number | undefined;
-    const endLine = node?.position?.end?.line as number | undefined;
-    const isTopLevel = (node?.position?.start?.column ?? 99) <= 3;
-    const isTodo = typeof node?.checked === 'boolean';
-    const item = isTopLevel && !isTodo ? getMarkdownSlice(line, endLine) : null;
     return (
       <li {...props} className={`itinerary-list-item ${props.className || ''}`.trim()}>
         {children}
-        {item && (
-          <button
-            type="button"
-            className="ask-inline-btn"
-            onClick={() => onAskAboutSelection(item)}
-            title="Ask about this item"
-          >
-            Ask about item
-          </button>
-        )}
       </li>
     );
   };
 
   const renderDetails = ({ node, children, ...props }: any) => {
-    const line = node?.position?.start?.line as number | undefined;
-    const endLine = node?.position?.end?.line as number | undefined;
-    const section = getMarkdownSlice(line, endLine);
     const childrenArray = React.Children.toArray(children);
-    const summaryIndex = childrenArray.findIndex(
-      (child) => React.isValidElement(child) && child.type === 'summary',
-    );
-    if (summaryIndex >= 0 && section) {
-      const summaryEl = childrenArray[summaryIndex] as React.ReactElement;
-      childrenArray[summaryIndex] = React.cloneElement(summaryEl, {
-        children: (
-          <>
-            {summaryEl.props.children}
-            <button
-              type="button"
-              className="ask-inline-btn ask-details-btn"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onAskAboutSelection(section);
-              }}
-              title="Ask about this section"
-            >
-              Ask about day
-            </button>
-          </>
-        ),
-      });
-    }
     return (
       <details {...props} className={`itinerary-details ${props.className || ''}`.trim()}>
         {childrenArray}
@@ -549,44 +439,7 @@ export function ItineraryPane({
       <div
         className="flex-1 overflow-y-auto px-4 py-4 relative"
         ref={scrollRef}
-        onMouseUp={() => {
-          const sel = window.getSelection();
-          const text = sel?.toString() ?? '';
-          if (!sel || !text.trim()) {
-            setSelection(null);
-            return;
-          }
-          const range = sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
-          if (!range) return;
-          const rect = range.getBoundingClientRect();
-          const containerRect = scrollRef.current?.getBoundingClientRect();
-          if (!containerRect || !scrollRef.current) return;
-          setSelection({
-            text,
-            x: Math.max(8, rect.left - containerRect.left),
-            y: Math.max(8, rect.top - containerRect.top - 40 + scrollRef.current.scrollTop),
-          });
-        }}
       >
-        {selection && (
-          <div
-            className="absolute z-10"
-            style={{ left: selection.x, top: selection.y }}
-          >
-            <button
-              type="button"
-              className="btn-primary px-3 py-2 text-xs"
-              onClick={() => {
-                onAskAboutSelection(selection.text);
-                setSelection(null);
-              }}
-              title={selectionLabel ?? undefined}
-            >
-              Ask about selection
-            </button>
-          </div>
-        )}
-
         {isEditing ? (
           <textarea
             className="input-terminal w-full"
