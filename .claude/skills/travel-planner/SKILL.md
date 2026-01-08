@@ -49,7 +49,7 @@ Each trip is a directory:
 
 5. **Draft/update the itinerary (markdown)**
    - Use headings for hierarchy and optional `<details>` blocks for collapsible day sections.
-   - Add Google Maps links per destination/day.
+   - **Link inline at first mention** — see `$SKILL_ROOT/reference/inline-linking.md` for examples.
    - Add 1–2 images per destination section (stable public URLs preferred).
    - Track open decisions and bookings as TODO task items (`- [ ]` / `- [x]`).
 
@@ -88,3 +88,4 @@ Use the **Skill tool** to invoke the `chat-title-generator` skill as a backgroun
 ## Reference
 
 - `$SKILL_ROOT/reference/itinerary-conventions.md` – formatting conventions and markers
+- `$SKILL_ROOT/reference/inline-linking.md` – inline linking guidelines (IMPORTANT)

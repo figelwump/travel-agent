@@ -24,30 +24,15 @@ ALL activities within time periods MUST be bullet list items:
 
 **Do NOT use plain paragraphs for activities** — always use bullet lists.
 
-## Google Maps links
+## Linking
 
-EVERY linkable location must have a Google Maps link: airports, beaches, parks, hotels, restaurants, attractions, neighborhoods.
+See **`inline-linking.md`** for comprehensive linking guidelines.
 
-Format:
-```markdown
-[Location Name](https://www.google.com/maps/search/?api=1&query=Location+Name+City)
-```
-
-Examples:
-```markdown
-[Kahului Airport (OGG)](https://www.google.com/maps/search/?api=1&query=Kahului+Airport+OGG)
-[Wailea Beach](https://www.google.com/maps/search/?api=1&query=Wailea+Beach+Maui)
-[Coconut's Fish Cafe](https://www.google.com/maps/search/?api=1&query=Coconut%27s+Fish+Cafe+Kihei)
-```
-
-## Official venue links
-
-When you verify venue details (hours, closures, tickets), link the venue name to its official website and include a Google Maps link alongside it.
-
-Example:
-```markdown
-- [ ] Confirm [Perlan Museum](https://www.perlan.is) hours (maps: [Perlan](https://www.google.com/maps/search/?api=1&query=Perlan+Reykjavik))
-```
+Key points:
+- Link places/venues **inline at first mention** — don't make users hunt for links
+- Source facts (prices, hours) with links to where you found them
+- Use Google Maps for locations, official websites for attractions
+- Format: `[Location](https://www.google.com/maps/search/?api=1&query=Location+City)`
 
 ## Images
 
@@ -130,9 +115,9 @@ If no reservations needed:
 #### Morning/Afternoon
 
 - Arrive at [Kahului Airport (OGG)](https://www.google.com/maps/search/?api=1&query=Kahului+Airport+OGG)
-- Pick up rental car
-- Drive to [Wailea](https://www.google.com/maps/search/?api=1&query=Wailea+Maui+Hawaii)
-- Check-in and settle in
+- Pick up rental car from [Alamo](https://www.alamo.com) at airport
+- Drive to [Wailea](https://www.google.com/maps/search/?api=1&query=Wailea+Maui+Hawaii) (~30 min)
+- Check in at [Grand Wailea Resort](https://www.grandwailea.com) ([map](https://www.google.com/maps/search/?api=1&query=Grand+Wailea+Resort+Maui))
 
 #### Evening
 
@@ -141,7 +126,7 @@ If no reservations needed:
 
 #### Accommodation
 
-- **Hotel:** [Grand Wailea Resort](https://www.google.com/maps/search/?api=1&query=Grand+Wailea+Resort+Maui)
+- **Hotel:** [Grand Wailea Resort](https://www.grandwailea.com) ([map](https://www.google.com/maps/search/?api=1&query=Grand+Wailea+Resort+Maui))
 - **Address:** 3850 Wailea Alanui Dr, Wailea, HI 96753
 - **Phone:** (808) 875-1234
 - **Confirmation:** TBD
