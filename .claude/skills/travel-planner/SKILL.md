@@ -50,7 +50,8 @@ Each trip is a directory:
 5. **Draft/update the itinerary (markdown)**
    - Use headings for hierarchy and optional `<details>` blocks for collapsible day sections.
    - **Link inline at first mention** — see `$SKILL_ROOT/reference/inline-linking.md` for examples.
-   - Add 1–2 images per destination section (stable public URLs preferred).
+   - Add 2–3 thumbnail-sized images per **day section**, chosen from that day's key activities/locations (stable public URLs preferred; Wikimedia/Wikipedia are ideal).
+   - If the itinerary is high-level (no day sections yet), add 1–2 images per destination section instead.
    - Track open decisions and bookings as TODO task items (`- [ ]` / `- [x]`).
 
 6. **Persist**
