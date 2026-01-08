@@ -68,6 +68,10 @@ Recommended structure:
   - `### Day N — ...` or a collapsible block:
     - `<details open><summary><strong>Day N — …</strong></summary> ... </details>`
 
+## Trip Map Generation
+
+When creating a new itinerary or adding destinations, generate a trip overview map using the **nano-banana** skill. Save the generated image to `~/.travelagent/trips/<tripId>/assets/itinerary-map.png` and reference it in the itinerary.
+
 ## Automatic Chat Title Generation
 
 After your **first substantive response** to the user in a conversation (not just a greeting), generate a descriptive title for the chat. This helps users identify conversations in the sidebar.

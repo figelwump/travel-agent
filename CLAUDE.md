@@ -49,10 +49,7 @@ This is a personal travel planning agent with a Bun server backend and React fro
 - **agent-client.ts** - Wraps `@anthropic-ai/claude-agent-sdk` query function. Configures allowed tools, sandboxes file writes to `~/.travelagent/`, and appends the travel agent system prompt.
 - **system-prompt.ts** - Base system prompt for the sandboxed travel agent.
 
-The agent can persist data via special markers in its output:
-- `<!-- travelagent:save-itinerary -->` after an `itinerary-md` fenced block
-- `<!-- travelagent:save-prefs -->` after a `travel-prefs.json` fenced block
-- `<!-- travelagent:generate-map -->` to trigger map generation
+The agent uses standard file tools (Read, Write, Edit) to persist data directly to the filesystem.
 
 ### Web Client (`web/`)
 
