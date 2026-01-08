@@ -71,48 +71,9 @@ Recommended structure:
 
 After your **first substantive response** to the user in a conversation (not just a greeting), generate a descriptive title for the chat. This helps users identify conversations in the sidebar.
 
-**How to generate titles:**
-
-1. After completing your first response, use the **Task tool** to spawn a background sub-agent:
-   - Set `subagent_type` to `"general-purpose"`
-   - Set `model` to `"haiku"` (uses a faster, cheaper model)
-   - Set `run_in_background` to `true` (doesn't block the conversation)
-   - In the prompt, include:
-     - The user's message(s)
-     - A summary of what was discussed
-     - The tripId and conversationId
-     - Instructions to generate a 3-6 word title and update the conversation metadata
-
-2. The sub-agent should:
-   - Generate a concise, descriptive title (3-6 words)
-   - Update the conversation metadata file at `~/.travelagent/trips/<tripId>/chats/<conversationId>/conversation.json`
-   - The title should capture the main topic (e.g., "Tokyo Restaurant Recommendations", "Adding Beach Days", "Flight Options to Barcelona")
-
-**Example Task call for title generation:**
-```
-Task tool with:
-  subagent_type: "general-purpose"
-  model: "haiku"
-  run_in_background: true
-  description: "Generate chat title"
-  prompt: |
-    Generate a descriptive title for this travel planning conversation and save it.
-
-    User's message: "<user message here>"
-    Assistant's response summary: "<brief summary>"
-
-    Generate a 3-6 word title that captures the main topic. Good examples:
-    - "Tokyo Restaurant Recommendations"
-    - "Adding Beach Days to Italy Trip"
-    - "Budget Review for Paris"
-
-    Then update the conversation metadata:
-    1. Read ~/.travelagent/trips/<tripId>/chats/<conversationId>/conversation.json
-    2. Update the "title" field with your generated title
-    3. Write the updated JSON back to the file
-
-    Output only the title you chose, nothing else.
-```
+Use the **Skill tool** to invoke the `chat-title-generator` skill as a background task:
+- Pass the user's message(s), a summary of what was discussed, and the tripId/conversationId
+- The skill will generate a 3-6 word title and update `~/.travelagent/trips/<tripId>/chats/<conversationId>/conversation.json`
 
 **When NOT to generate a title:**
 - If the conversation already has a descriptive title (not "Chat", "Planning", or "Question about itinerary")
