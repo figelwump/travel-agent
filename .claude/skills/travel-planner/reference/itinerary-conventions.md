@@ -40,6 +40,15 @@ Examples:
 [Coconut's Fish Cafe](https://www.google.com/maps/search/?api=1&query=Coconut%27s+Fish+Cafe+Kihei)
 ```
 
+## Official venue links
+
+When you verify venue details (hours, closures, tickets), link the venue name to its official website and include a Google Maps link alongside it.
+
+Example:
+```markdown
+- [ ] Confirm [Perlan Museum](https://www.perlan.is) hours (maps: [Perlan](https://www.google.com/maps/search/?api=1&query=Perlan+Reykjavik))
+```
+
 ## Images
 
 Include 2-3 images per day showing key locations/activities. Use stable public URLs (Wikimedia/Wikipedia preferred):
@@ -147,4 +156,3 @@ If no reservations needed:
 
 </details>
 ```
-
