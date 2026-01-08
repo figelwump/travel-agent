@@ -552,8 +552,7 @@ const App: React.FC = () => {
 
   const handleCreateConversation = async () => {
     if (!activeTripId) return;
-    const title = prompt('Chat title (optional):') || undefined;
-    const res = await apiFetch<Conversation>(`/api/trips/${activeTripId}/conversations`, { method: 'POST', body: JSON.stringify({ title }) }, credentials);
+    const res = await apiFetch<Conversation>(`/api/trips/${activeTripId}/conversations`, { method: 'POST' }, credentials);
     if (!res.ok) {
       alert(`Failed to create chat: ${res.error}`);
       return;
