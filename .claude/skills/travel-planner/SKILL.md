@@ -1,6 +1,6 @@
 ---
 name: travel-planner
-description: Plan or refine a personal trip itinerary. Use when the user wants to start a new trip, revise an existing itinerary, add destinations/days, add maps/images, verify time-sensitive details (hours, closures, ticketing), track booking TODOs, or persist preferences + a markdown itinerary under ~/.travelagent.
+description: Plan, create, or update a personal trip itinerary. Use when the user wants to start a new trip, update or refine an existing itinerary, add destinations/days, adjust schedules, add maps/images, verify time-sensitive details (hours, closures, ticketing), track booking TODOs, or persist preferences + a markdown itinerary under ~/.travelagent.
 allowed-tools: Read, Write, Edit, MultiEdit, Bash, Glob, WebSearch, WebFetch
 ---
 
@@ -27,8 +27,8 @@ Each trip is a directory:
 ## Workflow
 
 1. **Determine trip mode**
-   - Ask: "Is this a new trip, or do you already have an itinerary you want to refine?"
-   - If existing: request the itinerary + any constraints/bookings.
+   - Ask: "Is this a new trip, or do you want me to update an existing itinerary?"
+   - If existing: request the current itinerary + any constraints/bookings/changes.
 
 2. **Interview for preferences (new trip)**
    - Destination(s) and approximate dates
