@@ -168,7 +168,7 @@ export class ConversationSession {
       `Persistence protocol (VERY IMPORTANT):`,
       `- When you have enough clarity to create/update the itinerary, output ONE fenced block with language \`itinerary-md\` containing the full itinerary markdown, and include the line \`<!-- travelagent:save-itinerary -->\` immediately after the code block.`,
       `- When you want to update stored preferences, output ONE fenced block with language \`travel-prefs.json\` containing a JSON object, and include \`<!-- travelagent:save-prefs -->\` immediately after it.`,
-      `- If you want the server to generate a single trip-wide "map image" and insert it into the itinerary, include \`<!-- travelagent:generate-map -->\` and (optionally) provide a \`travel-destinations.json\` fenced block containing either an array of destination strings or an object like { "destinations": ["..."] }.`,
+      `- When creating a new itinerary or adding/changing destinations, ALWAYS include \`<!-- travelagent:generate-map -->\` after saving the itinerary. Also provide a \`travel-destinations.json\` fenced block with the destinations array: \`{ "destinations": ["City 1", "City 2", ...] }\`. This generates an overview map for the trip.`,
       `- Use markdown task list items for todos: \`- [ ]\` and \`- [x]\`.`,
     ].join("\n");
   }
