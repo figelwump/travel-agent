@@ -78,6 +78,8 @@ const App: React.FC = () => {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [hasEverConnected, setHasEverConnected] = useState(false);
   const streamingMessageIdRef = useRef<string | null>(null);
+  const pendingItineraryRefreshRef = useRef(false);
+  const queryInProgressRef = useRef(false);
   const chatTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -157,6 +159,7 @@ const App: React.FC = () => {
         }
         case 'assistant_partial': {
           if (message.tripId !== activeTripId || message.conversationId !== activeConversationId) break;
+          queryInProgressRef.current = true;
           const partialText = typeof message.content === 'string' ? message.content : '';
           const timestamp = new Date().toISOString();
           const existingId = streamingMessageIdRef.current;
@@ -201,6 +204,7 @@ const App: React.FC = () => {
         }
         case 'assistant_message': {
           if (message.tripId !== activeTripId || message.conversationId !== activeConversationId) break;
+          queryInProgressRef.current = true;
           const text = typeof message.content === 'string' ? message.content : '';
           const timestamp = new Date().toISOString();
           const streamingId = streamingMessageIdRef.current;
@@ -255,10 +259,19 @@ const App: React.FC = () => {
           }
           streamingMessageIdRef.current = null;
           setIsLoading(false);
+          queryInProgressRef.current = false;
+          if (pendingItineraryRefreshRef.current) {
+            pendingItineraryRefreshRef.current = false;
+            refreshItinerary();
+          }
           break;
         }
         case 'itinerary_updated': {
           if (message.tripId !== activeTripId) break;
+          if (queryInProgressRef.current) {
+            pendingItineraryRefreshRef.current = true;
+            break;
+          }
           refreshItinerary();
           break;
         }
@@ -288,6 +301,7 @@ const App: React.FC = () => {
           setMessages(prev => [...prev, errorMessage]);
           streamingMessageIdRef.current = null;
           setIsLoading(false);
+          queryInProgressRef.current = false;
           break;
         }
       }
@@ -371,6 +385,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!credentials || !activeTripId) return;
+    pendingItineraryRefreshRef.current = false;
+    queryInProgressRef.current = false;
     setConversations([]);
     setActiveConversationId(null);
     setMessages([]);
@@ -549,6 +565,7 @@ const App: React.FC = () => {
 
   const handleSendUserText = (text: string) => {
     if (!activeTripId || !activeConversationId) return;
+    queryInProgressRef.current = true;
     const timestamp = new Date().toISOString();
     const userMessage: Message = { id: Date.now().toString(), type: 'user', content: text, timestamp };
     setMessages(prev => [...prev, userMessage]);
