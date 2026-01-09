@@ -5,7 +5,7 @@
   "main": "server/server.ts",
   "type": "module",
   "scripts": {
-    "dev": "bun --watch server/server.ts",
+    "dev": "lsof -ti:${PORT:-3001} | xargs kill -9 2>/dev/null; bun --watch server/server.ts",
     "start": "bun run server/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test"

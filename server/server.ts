@@ -7,7 +7,7 @@ import * as fs from "fs/promises";
 import { Buffer } from "buffer";
 import { createHeaders, jsonResponse } from "./http";
 
-const PORT = Number(process.env.PORT || 3000);
+const PORT = Number(process.env.PORT || 3001);
 const AUTH_PASSWORD = process.env.AUTH_PASSWORD || process.env.BASIC_AUTH_PASSWORD || process.env.BASIC_AUTH_PASS;
 const DISABLE_AUTH = process.env.DISABLE_AUTH === "true";
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
