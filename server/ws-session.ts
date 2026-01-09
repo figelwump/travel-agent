@@ -200,15 +200,30 @@ export class ConversationSession {
   }
 
   private async handleSdkMessage(message: SDKMessage): Promise<void> {
-    // Log all non-stream messages
+    // Log all non-stream messages with detailed info
     if (message.type !== "stream_event") {
       const msgAny = message as any;
-      if (message.type === "tool_use") {
-        console.log(`[ToolUse] ${msgAny.tool_name}`, JSON.stringify(msgAny.tool_input ?? {}).slice(0, 300));
-      } else if (message.type === "tool_result") {
-        const result = typeof msgAny.result === "string" ? msgAny.result : JSON.stringify(msgAny.result ?? "");
-        console.log(`[ToolResult] ${msgAny.tool_name ?? "unknown"}:`, result.slice(0, 200) + (result.length > 200 ? "..." : ""));
-      } else if (message.type !== "assistant" || joinAssistantText(message)) {
+
+      // Check for tool use in assistant messages (tools are in message.message.content array)
+      if (message.type === "assistant" && msgAny.message?.content) {
+        const content = msgAny.message.content;
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (block.type === "tool_use") {
+              console.log(`[ToolUse] ${block.name}`, JSON.stringify(block.input ?? {}).slice(0, 300));
+            }
+          }
+        }
+      }
+
+      // Check for tool_result message type
+      if (message.type === "tool_result") {
+        const result = typeof msgAny.content === "string" ? msgAny.content : JSON.stringify(msgAny.content ?? "");
+        console.log(`[ToolResult]:`, result.slice(0, 300) + (result.length > 300 ? "..." : ""));
+      }
+
+      // Log other message types
+      if (message.type !== "assistant" && message.type !== "tool_result") {
         console.log(`[SDKMessage] type=${message.type}`, msgAny.subtype ? `subtype=${msgAny.subtype}` : "");
       }
     }
