@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { AssistantMessage as AssistantMessageType, ToolUseBlock, TextBlock, StructuredPrompt } from './types';
+import { AssistantMessage as AssistantMessageType, ToolUseBlock, TextBlock, StructuredPrompt, ToolActivity } from './types';
 
 interface AssistantMessageProps {
   message: AssistantMessageType;
@@ -502,6 +502,41 @@ function TextComponent({ text }: { text: TextBlock }) {
 export function AssistantMessage({ message }: AssistantMessageProps) {
   const [showMetadata, setShowMetadata] = useState(false);
   const isStreaming = message.metadata?.streaming;
+  const toolActivity = Array.isArray(message.metadata?.toolActivity)
+    ? message.metadata?.toolActivity as ToolActivity[]
+    : [];
+  const runningToolCount = toolActivity.filter(tool => tool.status === 'running').length;
+
+  const formatToolSummary = (tool: ToolActivity) => {
+    const input = tool.input ?? {};
+    const truncate = (value: string, max = 72) => (
+      value.length > max ? `${value.slice(0, max - 3)}...` : value
+    );
+
+    switch (tool.name) {
+      case 'Read':
+      case 'Write':
+      case 'Edit':
+      case 'MultiEdit':
+      case 'NotebookEdit':
+        return input.file_path ? truncate(String(input.file_path)) : 'File operation';
+      case 'Bash':
+        return input.command ? truncate(`$ ${String(input.command)}`) : 'Shell command';
+      case 'WebFetch':
+        return input.url ? truncate(String(input.url)) : 'Fetch URL';
+      case 'WebSearch':
+        return input.query ? truncate(String(input.query)) : 'Search query';
+      case 'Glob':
+      case 'Grep':
+        return input.pattern ? truncate(String(input.pattern)) : 'Pattern match';
+      case 'Task':
+        return input.subagent_type ? `Agent: ${input.subagent_type}` : 'Sub-agent task';
+      case 'TodoWrite':
+        return input.todos ? `${input.todos.length} todos` : 'Todo update';
+      default:
+        return 'Working...';
+    }
+  };
 
   return (
     <div className={`message-card message-assistant p-4 ${isStreaming ? 'animate-flicker' : ''}`}>
@@ -542,6 +577,46 @@ export function AssistantMessage({ message }: AssistantMessageProps) {
       </div>
 
       <div className="space-y-3">
+        {toolActivity.length > 0 && (
+          <div className="tool-activity-panel">
+            <div className="tool-activity-header">
+              <span className="mono-label" style={{ color: 'hsl(var(--text-secondary))' }}>
+                Tool activity
+              </span>
+              <span className="mono-label" style={{ color: 'hsl(var(--text-tertiary))' }}>
+                {runningToolCount > 0 ? `${runningToolCount} running` : 'All complete'}
+              </span>
+            </div>
+            <div className="tool-activity-list">
+              {toolActivity.map((tool) => (
+                <div key={tool.id} className={`tool-activity-item ${tool.status}`}>
+                  <div className="tool-activity-name">
+                    <span className={`tool-activity-dot ${tool.status}`} />
+                    <span className="mono-label" style={{ color: 'hsl(var(--text-secondary))' }}>
+                      {tool.name}
+                    </span>
+                    <span className="tool-activity-summary">
+                      {formatToolSummary(tool)}
+                    </span>
+                  </div>
+                  <span
+                    className={`tool-activity-status ${tool.status}`}
+                    aria-label={tool.status === 'running' ? 'Running' : 'Complete'}
+                    title={tool.status === 'running' ? 'Running' : 'Complete'}
+                  >
+                    {tool.status === 'running' ? (
+                      'Running'
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M4 10l4 4 8-8" />
+                      </svg>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {message.content.map((block, index) => {
           if (block.type === 'text') {
             return <TextComponent key={index} text={block} />;

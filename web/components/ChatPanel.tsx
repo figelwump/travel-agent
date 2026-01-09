@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { MessageRenderer } from './message/MessageRenderer';
-import type { Message, ToolActivity } from './message/types';
+import type { Message } from './message/types';
 
 // Icons for the input bar
 const PaperclipIcon = () => (
@@ -20,7 +20,6 @@ interface ChatPanelProps {
   isLoading: boolean;
   disabled: boolean;
   messages: Message[];
-  toolActivity: ToolActivity[];
   draft: string;
   setDraft: (v: string) => void;
   textareaHeight?: number | null;
@@ -37,7 +36,6 @@ export function ChatPanel({
   isLoading,
   disabled,
   messages,
-  toolActivity,
   draft,
   setDraft,
   textareaHeight,
@@ -59,41 +57,6 @@ export function ChatPanel({
   const hasStreamingAssistant = useMemo(() => (
     messages.some(msg => msg.type === 'assistant' && msg.metadata?.streaming)
   ), [messages]);
-
-  const runningToolCount = useMemo(() => (
-    toolActivity.filter(tool => tool.status === 'running').length
-  ), [toolActivity]);
-
-  const formatToolSummary = (tool: ToolActivity) => {
-    const input = tool.input ?? {};
-    const truncate = (value: string, max = 72) => (
-      value.length > max ? `${value.slice(0, max - 3)}...` : value
-    );
-
-    switch (tool.name) {
-      case 'Read':
-      case 'Write':
-      case 'Edit':
-      case 'MultiEdit':
-      case 'NotebookEdit':
-        return input.file_path ? truncate(String(input.file_path)) : 'File operation';
-      case 'Bash':
-        return input.command ? truncate(`$ ${String(input.command)}`) : 'Shell command';
-      case 'WebFetch':
-        return input.url ? truncate(String(input.url)) : 'Fetch URL';
-      case 'WebSearch':
-        return input.query ? truncate(String(input.query)) : 'Search query';
-      case 'Glob':
-      case 'Grep':
-        return input.pattern ? truncate(String(input.pattern)) : 'Pattern match';
-      case 'Task':
-        return input.subagent_type ? `Agent: ${input.subagent_type}` : 'Sub-agent task';
-      case 'TodoWrite':
-        return input.todos ? `${input.todos.length} todos` : 'Todo update';
-      default:
-        return 'Working...';
-    }
-  };
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -117,36 +80,6 @@ export function ChatPanel({
     <div className="flex flex-col h-full">
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        {toolActivity.length > 0 && (
-          <div className="tool-activity-panel animate-slide-up">
-            <div className="tool-activity-header">
-              <span className="mono-label" style={{ color: 'hsl(var(--text-secondary))' }}>
-                Tool activity
-              </span>
-              <span className="mono-label" style={{ color: 'hsl(var(--text-tertiary))' }}>
-                {runningToolCount > 0 ? `${runningToolCount} running` : 'All complete'}
-              </span>
-            </div>
-            <div className="tool-activity-list">
-              {toolActivity.map((tool) => (
-                <div key={tool.id} className={`tool-activity-item ${tool.status}`}>
-                  <div className="tool-activity-name">
-                    <span className={`tool-activity-dot ${tool.status}`} />
-                    <span className="mono-label" style={{ color: 'hsl(var(--text-secondary))' }}>
-                      {tool.name}
-                    </span>
-                    <span className="tool-activity-summary">
-                      {formatToolSummary(tool)}
-                    </span>
-                  </div>
-                  <span className={`tool-activity-status ${tool.status}`}>
-                    {tool.status === 'running' ? 'Running' : 'Complete'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-12 px-6">
             {/* Travel-themed decorative icon */}

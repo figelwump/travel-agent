@@ -63,6 +63,7 @@ export interface BaseMessage {
       };
       service_tier?: string;
       streaming?: boolean;
+      toolActivity?: ToolActivity[];
       [key: string]: unknown;
     };
   }

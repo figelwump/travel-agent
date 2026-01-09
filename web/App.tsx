@@ -73,12 +73,13 @@ async function apiFetch<T>(
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [toolActivity, setToolActivity] = useState<ToolActivity[]>([]);
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [passwordInput, setPasswordInput] = useState('');
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [hasEverConnected, setHasEverConnected] = useState(false);
   const streamingMessageIdRef = useRef<string | null>(null);
+  const toolActivityMessageIdRef = useRef<string | null>(null);
+  const toolUseToMessageRef = useRef<Record<string, string>>({});
   const pendingItineraryRefreshRef = useRef(false);
   const queryInProgressRef = useRef(false);
   const chatTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -163,29 +164,58 @@ const App: React.FC = () => {
           const tool = message.tool;
           if (!tool || !tool.id) break;
           const timestamp = message.timestamp || new Date().toISOString();
-          setToolActivity(prev => {
-            const existingIndex = prev.findIndex(item => item.id === tool.id);
-            if (existingIndex >= 0) {
-              const next = [...prev];
-              next[existingIndex] = {
-                ...next[existingIndex],
-                name: tool.name ?? next[existingIndex].name,
-                input: tool.input ?? next[existingIndex].input,
-                status: 'running',
-                startedAt: next[existingIndex].startedAt || timestamp,
-              };
-              return next;
+          const ensureMessageId = () => {
+            if (toolActivityMessageIdRef.current) return toolActivityMessageIdRef.current;
+            if (streamingMessageIdRef.current) {
+              toolActivityMessageIdRef.current = streamingMessageIdRef.current;
+              return toolActivityMessageIdRef.current;
             }
-            return [
-              ...prev,
-              {
-                id: tool.id,
-                name: tool.name ?? 'Tool',
-                input: tool.input ?? {},
-                status: 'running',
-                startedAt: timestamp,
-              }
-            ];
+            const newId = `${Date.now()}-assistant-tools`;
+            toolActivityMessageIdRef.current = newId;
+            if (!streamingMessageIdRef.current) {
+              streamingMessageIdRef.current = newId;
+            }
+            return newId;
+          };
+          const messageId = ensureMessageId();
+          toolUseToMessageRef.current[tool.id] = messageId;
+          const nextTool: ToolActivity = {
+            id: tool.id,
+            name: tool.name ?? 'Tool',
+            input: tool.input ?? {},
+            status: 'running',
+            startedAt: timestamp,
+          };
+          setMessages(prev => {
+            const index = prev.findIndex(msg => msg.id === messageId);
+            if (index < 0) {
+              const toolMessage: Message = {
+                id: messageId,
+                type: 'assistant',
+                content: [],
+                timestamp,
+                metadata: { streaming: true, toolActivity: [nextTool] },
+              };
+              return [...prev, toolMessage];
+            }
+            const next = [...prev];
+            const msg = next[index];
+            if (msg.type !== 'assistant') return prev;
+            const existing = Array.isArray(msg.metadata?.toolActivity)
+              ? msg.metadata?.toolActivity as ToolActivity[]
+              : [];
+            const existingIndex = existing.findIndex(item => item.id === tool.id);
+            const updated = [...existing];
+            if (existingIndex >= 0) {
+              updated[existingIndex] = { ...existing[existingIndex], ...nextTool };
+            } else {
+              updated.push(nextTool);
+            }
+            next[index] = {
+              ...msg,
+              metadata: { ...(msg.metadata ?? {}), toolActivity: updated },
+            };
+            return next;
           });
           break;
         }
@@ -194,27 +224,58 @@ const App: React.FC = () => {
           const toolUseId = message.tool_use_id;
           if (!toolUseId) break;
           const timestamp = message.timestamp || new Date().toISOString();
-          setToolActivity(prev => {
-            const existingIndex = prev.findIndex(item => item.id === toolUseId);
+          const messageId = toolUseToMessageRef.current[toolUseId]
+            ?? toolActivityMessageIdRef.current
+            ?? streamingMessageIdRef.current;
+          if (!messageId) break;
+          setMessages(prev => {
+            const index = prev.findIndex(msg => msg.id === messageId);
+            if (index < 0) {
+              const toolMessage: Message = {
+                id: messageId,
+                type: 'assistant',
+                content: [],
+                timestamp,
+                metadata: {
+                  toolActivity: [{
+                    id: toolUseId,
+                    name: 'Tool',
+                    status: 'complete',
+                    startedAt: timestamp,
+                    completedAt: timestamp,
+                  }]
+                },
+              };
+              return [...prev, toolMessage];
+            }
+            const next = [...prev];
+            const msg = next[index];
+            if (msg.type !== 'assistant') return prev;
+            const existing = Array.isArray(msg.metadata?.toolActivity)
+              ? msg.metadata?.toolActivity as ToolActivity[]
+              : [];
+            const existingIndex = existing.findIndex(item => item.id === toolUseId);
+            const updated = [...existing];
             if (existingIndex >= 0) {
-              const next = [...prev];
-              next[existingIndex] = {
-                ...next[existingIndex],
+              updated[existingIndex] = {
+                ...existing[existingIndex],
                 status: 'complete',
                 completedAt: timestamp,
               };
-              return next;
-            }
-            return [
-              ...prev,
-              {
+            } else {
+              updated.push({
                 id: toolUseId,
                 name: 'Tool',
                 status: 'complete',
                 startedAt: timestamp,
                 completedAt: timestamp,
-              }
-            ];
+              });
+            }
+            next[index] = {
+              ...msg,
+              metadata: { ...(msg.metadata ?? {}), toolActivity: updated },
+            };
+            return next;
           });
           break;
         }
@@ -321,11 +382,8 @@ const App: React.FC = () => {
           streamingMessageIdRef.current = null;
           setIsLoading(false);
           queryInProgressRef.current = false;
-          setToolActivity(prev => prev.map(tool => (
-            tool.status === 'running'
-              ? { ...tool, status: 'complete', completedAt: tool.completedAt ?? new Date().toISOString() }
-              : tool
-          )));
+          toolActivityMessageIdRef.current = null;
+          toolUseToMessageRef.current = {};
           if (pendingItineraryRefreshRef.current) {
             pendingItineraryRefreshRef.current = false;
             refreshItinerary();
@@ -456,10 +514,11 @@ const App: React.FC = () => {
     setConversations([]);
     setActiveConversationId(null);
     setMessages([]);
-    setToolActivity([]);
     setItineraryMarkdown('');
     setIsLoading(false);
     streamingMessageIdRef.current = null;
+    toolActivityMessageIdRef.current = null;
+    toolUseToMessageRef.current = {};
     refreshConversations(activeTripId);
     refreshItinerary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -474,7 +533,8 @@ const App: React.FC = () => {
     if (!activeTripId || !activeConversationId || !credentials) return;
     setIsLoading(false);
     streamingMessageIdRef.current = null;
-    setToolActivity([]);
+    toolActivityMessageIdRef.current = null;
+    toolUseToMessageRef.current = {};
     refreshMessages(activeTripId, activeConversationId);
     sendMessage({ type: 'subscribe', tripId: activeTripId, conversationId: activeConversationId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -499,7 +559,8 @@ const App: React.FC = () => {
     setPasswordInput('');
     setConnectionError(null);
     setMessages([]);
-    setToolActivity([]);
+    toolActivityMessageIdRef.current = null;
+    toolUseToMessageRef.current = {};
     setTrips([]);
     setActiveTripId(null);
     setConversations([]);
@@ -613,7 +674,8 @@ const App: React.FC = () => {
         const timestamp = new Date().toISOString();
         const userMessage: Message = { id: Date.now().toString(), type: 'user', content: initPrompt, timestamp };
         setMessages(prev => [...prev, userMessage]);
-        setToolActivity([]);
+        toolActivityMessageIdRef.current = null;
+        toolUseToMessageRef.current = {};
         setIsLoading(true);
         sendMessage({ type: 'chat', tripId: res.data.id, conversationId: convRes.data.id, content: initPrompt });
       }, 300);
@@ -638,7 +700,8 @@ const App: React.FC = () => {
     const timestamp = new Date().toISOString();
     const userMessage: Message = { id: Date.now().toString(), type: 'user', content: text, timestamp };
     setMessages(prev => [...prev, userMessage]);
-    setToolActivity([]);
+    toolActivityMessageIdRef.current = null;
+    toolUseToMessageRef.current = {};
     setIsLoading(true);
     sendMessage({ type: 'chat', tripId: activeTripId, conversationId: activeConversationId, content: text });
   };
@@ -824,7 +887,6 @@ const App: React.FC = () => {
               isConnected={isConnected}
               isLoading={isLoading}
               messages={messages}
-              toolActivity={toolActivity}
               draft={activeDraft}
               setDraft={setDraftForActiveTrip}
               textareaHeight={activeDraftHeight}
