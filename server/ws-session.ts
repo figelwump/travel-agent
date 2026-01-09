@@ -162,6 +162,10 @@ export class ConversationSession {
     if (this.queryPromise) await this.queryPromise;
     await this.ensureConversationLoaded();
 
+    console.log(`\n${"=".repeat(60)}`);
+    console.log(`[UserMessage] tripId=${this.tripId} convId=${this.conversationId}`);
+    console.log(`[UserMessage] content: ${content.slice(0, 200)}${content.length > 200 ? "..." : ""}`);
+
     const userMsg: storage.StoredMessage = {
       id: crypto.randomUUID(),
       type: "user",
@@ -177,8 +181,9 @@ export class ConversationSession {
     this.queryPromise = (async () => {
       try {
         const ctxPrompt = await this.buildTripContextPrompt();
-        console.log("[TripContext]", ctxPrompt);
+        console.log(`[TripContext]\n${ctxPrompt}`);
         const options = this.sdkSessionId ? { resume: this.sdkSessionId } : {};
+        console.log(`[AgentQuery] Starting query, resume=${!!this.sdkSessionId}`);
 
         for await (const message of this.agentClient.queryStream(content, { ...options, appendSystemPrompt: ctxPrompt })) {
           await this.handleSdkMessage(message);
@@ -195,6 +200,19 @@ export class ConversationSession {
   }
 
   private async handleSdkMessage(message: SDKMessage): Promise<void> {
+    // Log all non-stream messages
+    if (message.type !== "stream_event") {
+      const msgAny = message as any;
+      if (message.type === "tool_use") {
+        console.log(`[ToolUse] ${msgAny.tool_name}`, JSON.stringify(msgAny.tool_input ?? {}).slice(0, 300));
+      } else if (message.type === "tool_result") {
+        const result = typeof msgAny.result === "string" ? msgAny.result : JSON.stringify(msgAny.result ?? "");
+        console.log(`[ToolResult] ${msgAny.tool_name ?? "unknown"}:`, result.slice(0, 200) + (result.length > 200 ? "..." : ""));
+      } else if (message.type !== "assistant" || joinAssistantText(message)) {
+        console.log(`[SDKMessage] type=${message.type}`, msgAny.subtype ? `subtype=${msgAny.subtype}` : "");
+      }
+    }
+
     if (message.type === "stream_event") {
       this.handleStreamEvent((message as any).event);
       return;
@@ -213,6 +231,7 @@ export class ConversationSession {
     if (message.type === "assistant") {
       const text = joinAssistantText(message);
       if (text) {
+        console.log(`[AssistantResponse] ${text.slice(0, 300)}${text.length > 300 ? "..." : ""}`);
         const msg: storage.StoredMessage = {
           id: crypto.randomUUID(),
           type: "assistant",
@@ -227,6 +246,7 @@ export class ConversationSession {
 
     if (message.type === "result") {
       const subtype = (message as any).subtype;
+      console.log(`[Result] ${subtype}, cost=$${(message as any).total_cost_usd?.toFixed(4) ?? "?"}, duration=${(message as any).duration_ms ?? "?"}ms`);
       if (subtype === "success") {
         this.broadcast({
           type: "result",
@@ -250,6 +270,7 @@ export class ConversationSession {
       return;
     }
 
-    // Tool blocks, etc. For MVP, ignore or log.
+    // Log unhandled message types
+    console.log(`[SDKMessage:Unhandled] type=${message.type}`, JSON.stringify(message).slice(0, 200));
   }
 }
