@@ -72,7 +72,11 @@ export async function handleApiRequest(req: Request, url: URL, ctx?: HeaderCtx):
 
   // itinerary
   if (segments[3] === "itinerary" && segments.length === 4) {
-    if (req.method === "GET") return textResponse(await storage.readItinerary(tripId), 200, ctx, "text/markdown");
+    if (req.method === "GET") {
+      const itinerary = await storage.readItinerary(tripId);
+      console.log(`[API] itinerary GET tripId=${tripId} length=${itinerary.length}`);
+      return textResponse(itinerary, 200, ctx, "text/markdown");
+    }
     if (req.method === "PUT") {
       const body = await parseJson(req);
       if (typeof body?.content !== "string") return badRequest("content must be a string", ctx);

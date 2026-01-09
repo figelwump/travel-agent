@@ -499,8 +499,17 @@ const App: React.FC = () => {
 
   const refreshItinerary = async () => {
     if (!activeTripId) return;
+    console.debug('[itinerary] refresh start', { tripId: activeTripId });
     const res = await apiFetch<string>(`/api/trips/${activeTripId}/itinerary`, { method: 'GET' }, credentials);
-    if (!res.ok) return;
+    if (!res.ok) {
+      console.debug('[itinerary] refresh failed', { tripId: activeTripId, status: res.status, error: res.error });
+      return;
+    }
+    console.debug('[itinerary] refresh success', {
+      tripId: activeTripId,
+      length: res.data?.length ?? 0,
+      preview: (res.data ?? '').split('\n')[0] || ''
+    });
     setItineraryMarkdown(res.data);
   };
 
