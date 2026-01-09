@@ -177,6 +177,7 @@ export class ConversationSession {
     this.queryPromise = (async () => {
       try {
         const ctxPrompt = await this.buildTripContextPrompt();
+        console.log("[TripContext]", ctxPrompt);
         const options = this.sdkSessionId ? { resume: this.sdkSessionId } : {};
 
         for await (const message of this.agentClient.queryStream(content, { ...options, appendSystemPrompt: ctxPrompt })) {
