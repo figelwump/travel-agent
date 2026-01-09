@@ -17,8 +17,10 @@ function formatTimestamp(timestamp: string): string {
   });
 }
 
-function ToolUseComponent({ toolUse }: { toolUse: ToolUseBlock }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+function ToolUseComponent({ toolUse, expanded }: { toolUse: ToolUseBlock; expanded?: boolean }) {
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const isExpanded = expanded ?? internalExpanded;
+  const canToggle = expanded === undefined;
   const toolName = toolUse.name === 'Skill' && toolUse.input?.skill
     ? `Skill: ${toolUse.input.skill}`
     : toolUse.name;
@@ -443,7 +445,15 @@ function ToolUseComponent({ toolUse }: { toolUse: ToolUseBlock }) {
     <div className="tool-card mt-3">
       <div
         className="tool-card-header flex justify-between items-center cursor-pointer hover-glow"
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={canToggle ? () => setInternalExpanded(!internalExpanded) : undefined}
+        role={canToggle ? 'button' : undefined}
+        tabIndex={canToggle ? 0 : undefined}
+        onKeyDown={canToggle ? (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setInternalExpanded(!internalExpanded);
+          }
+        } : undefined}
       >
         <div className="flex items-center gap-2">
           <span style={{ color: 'hsl(var(--accent-muted))' }}>{'>'}</span>
@@ -451,9 +461,11 @@ function ToolUseComponent({ toolUse }: { toolUse: ToolUseBlock }) {
             {toolName}
           </span>
         </div>
-        <span className="mono-label" style={{ fontSize: '0.65rem', color: 'hsl(var(--text-tertiary))' }}>
-          {isExpanded ? '[-]' : '[+]'}
-        </span>
+        {canToggle && (
+          <span className="mono-label" style={{ fontSize: '0.65rem', color: 'hsl(var(--text-tertiary))' }}>
+            {isExpanded ? '[-]' : '[+]'}
+          </span>
+        )}
       </div>
 
       {isExpanded && (
@@ -504,6 +516,7 @@ function TextComponent({ text }: { text: TextBlock }) {
 
 export function AssistantMessage({ message }: AssistantMessageProps) {
   const [showMetadata, setShowMetadata] = useState(false);
+  const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
   const isStreaming = message.metadata?.streaming;
   const toolActivity = Array.isArray(message.metadata?.toolActivity)
     ? message.metadata?.toolActivity as ToolActivity[]
@@ -548,6 +561,16 @@ export function AssistantMessage({ message }: AssistantMessageProps) {
       default:
         return 'Working...';
     }
+  };
+
+  const formatToolDetails = (tool: ToolActivity) => {
+    const toolUse: ToolUseBlock = {
+      type: 'tool_use',
+      id: tool.id,
+      name: tool.name,
+      input: tool.input ?? {},
+    };
+    return <ToolUseComponent toolUse={toolUse} expanded />;
   };
 
   return (
@@ -601,29 +624,49 @@ export function AssistantMessage({ message }: AssistantMessageProps) {
             </div>
             <div className="tool-activity-list">
               {toolActivity.map((tool) => (
-                <div key={tool.id} className={`tool-activity-item ${tool.status}`}>
-                  <div className="tool-activity-name">
-                    <span className={`tool-activity-dot ${tool.status}`} />
-                    <span className="mono-label" style={{ color: 'hsl(var(--text-secondary))' }}>
-                      {formatToolLabel(tool)}
-                    </span>
-                    <span className="tool-activity-summary">
-                      {formatToolSummary(tool)}
+                <div
+                  key={tool.id}
+                  className={`tool-activity-item ${tool.status} ${expandedToolId === tool.id ? 'expanded' : ''}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={expandedToolId === tool.id}
+                  onClick={() => setExpandedToolId(prev => (prev === tool.id ? null : tool.id))}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setExpandedToolId(prev => (prev === tool.id ? null : tool.id));
+                    }
+                  }}
+                >
+                  <div className="tool-activity-row">
+                    <div className="tool-activity-name">
+                      <span className={`tool-activity-dot ${tool.status}`} />
+                      <span className="mono-label" style={{ color: 'hsl(var(--text-secondary))' }}>
+                        {formatToolLabel(tool)}
+                      </span>
+                      <span className="tool-activity-summary">
+                        {formatToolSummary(tool)}
+                      </span>
+                    </div>
+                    <span
+                      className={`tool-activity-status ${tool.status}`}
+                      aria-label={tool.status === 'running' ? 'Running' : 'Complete'}
+                      title={tool.status === 'running' ? 'Running' : 'Complete'}
+                    >
+                      {tool.status === 'running' ? (
+                        'Running'
+                      ) : (
+                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M4 10l4 4 8-8" />
+                        </svg>
+                      )}
                     </span>
                   </div>
-                  <span
-                    className={`tool-activity-status ${tool.status}`}
-                    aria-label={tool.status === 'running' ? 'Running' : 'Complete'}
-                    title={tool.status === 'running' ? 'Running' : 'Complete'}
-                  >
-                    {tool.status === 'running' ? (
-                      'Running'
-                    ) : (
-                      <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M4 10l4 4 8-8" />
-                      </svg>
-                    )}
-                  </span>
+                  {expandedToolId === tool.id && (
+                    <div className="tool-activity-details">
+                      {formatToolDetails(tool)}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

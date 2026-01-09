@@ -1245,13 +1245,25 @@
 
 .tool-activity-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 1rem;
   background: hsl(var(--bg-tertiary));
   border: 1px solid hsl(var(--border-subtle));
   border-radius: var(--radius-sm);
   padding: 0.4rem 0.6rem;
+  cursor: pointer;
+}
+
+.tool-activity-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.tool-activity-details {
+  margin-top: 0.35rem;
 }
 
 .tool-activity-name {
