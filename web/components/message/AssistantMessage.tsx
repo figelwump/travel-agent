@@ -479,12 +479,12 @@ function TextComponent({ text }: { text: TextBlock }) {
             if (inline) {
               return <code className="code-inline" {...props}>{children}</code>;
             }
-            return (
-              <pre className="code-block p-3" {...props}>
-                <code>{children}</code>
-              </pre>
-            );
+            // For block code, react-markdown wraps this in <pre>, so just return <code>
+            return <code {...props}>{children}</code>;
           },
+          pre: ({ node, ...props }) => (
+            <pre className="code-block p-3" {...props} />
+          ),
           ul: ({ node, ...props }) => (
             <ul {...props} />
           ),
