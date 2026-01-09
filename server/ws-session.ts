@@ -120,7 +120,9 @@ export class ConversationSession {
       `- Uploads: ${dataRoot}/trips/${this.tripId}/uploads/`,
       `- Assets: ${dataRoot}/trips/${this.tripId}/assets/`,
       ``,
-      `When the user asks about "the itinerary" or "my trip", they mean THIS trip. Read ${itineraryPath} to answer their questions.`,
+      `When the user asks about "the itinerary" or "my trip", they mean THIS trip.`,
+      `If the user says "update itinerary", read ${itineraryPath} and ask what changes to make (do not ask which trip).`,
+      `Read ${itineraryPath} before answering questions about the itinerary.`,
     ].join("\n");
   }
 
@@ -175,6 +177,7 @@ export class ConversationSession {
     this.broadcast({
       type: "tool_result",
       tool_use_id: toolUseId,
+      tool_name: result?.name ?? result?.tool_name ?? null,
       content: result?.content ?? "",
       is_error: Boolean(result?.is_error),
       timestamp: nowIso(),

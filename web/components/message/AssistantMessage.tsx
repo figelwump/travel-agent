@@ -19,6 +19,9 @@ function formatTimestamp(timestamp: string): string {
 
 function ToolUseComponent({ toolUse }: { toolUse: ToolUseBlock }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const toolName = toolUse.name === 'Skill' && toolUse.input?.skill
+    ? `Skill: ${toolUse.input.skill}`
+    : toolUse.name;
 
   const formatToolDisplay = () => {
     const input = toolUse.input;
@@ -445,7 +448,7 @@ function ToolUseComponent({ toolUse }: { toolUse: ToolUseBlock }) {
         <div className="flex items-center gap-2">
           <span style={{ color: 'hsl(var(--accent-muted))' }}>{'>'}</span>
           <span className="mono-label" style={{ color: 'hsl(var(--text-secondary))' }}>
-            {toolUse.name}
+            {toolName}
           </span>
         </div>
         <span className="mono-label" style={{ fontSize: '0.65rem', color: 'hsl(var(--text-tertiary))' }}>
@@ -507,6 +510,13 @@ export function AssistantMessage({ message }: AssistantMessageProps) {
     : [];
   const runningToolCount = toolActivity.filter(tool => tool.status === 'running').length;
 
+  const formatToolLabel = (tool: ToolActivity) => {
+    if (tool.name === 'Skill' && tool.input?.skill) {
+      return `Skill: ${tool.input.skill}`;
+    }
+    return tool.name || 'Tool';
+  };
+
   const formatToolSummary = (tool: ToolActivity) => {
     const input = tool.input ?? {};
     const truncate = (value: string, max = 72) => (
@@ -514,6 +524,8 @@ export function AssistantMessage({ message }: AssistantMessageProps) {
     );
 
     switch (tool.name) {
+      case 'Skill':
+        return input.skill ? `Run ${truncate(String(input.skill), 40)}` : 'Skill workflow';
       case 'Read':
       case 'Write':
       case 'Edit':
@@ -593,7 +605,7 @@ export function AssistantMessage({ message }: AssistantMessageProps) {
                   <div className="tool-activity-name">
                     <span className={`tool-activity-dot ${tool.status}`} />
                     <span className="mono-label" style={{ color: 'hsl(var(--text-secondary))' }}>
-                      {tool.name}
+                      {formatToolLabel(tool)}
                     </span>
                     <span className="tool-activity-summary">
                       {formatToolSummary(tool)}

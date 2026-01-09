@@ -224,6 +224,9 @@ const App: React.FC = () => {
           const toolUseId = message.tool_use_id;
           if (!toolUseId) break;
           const timestamp = message.timestamp || new Date().toISOString();
+          const toolName = typeof message.tool_name === 'string' && message.tool_name
+            ? message.tool_name
+            : 'Tool';
           const messageId = toolUseToMessageRef.current[toolUseId]
             ?? toolActivityMessageIdRef.current
             ?? streamingMessageIdRef.current;
@@ -239,7 +242,7 @@ const App: React.FC = () => {
                 metadata: {
                   toolActivity: [{
                     id: toolUseId,
-                    name: 'Tool',
+                    name: toolName,
                     status: 'complete',
                     startedAt: timestamp,
                     completedAt: timestamp,
@@ -265,7 +268,7 @@ const App: React.FC = () => {
             } else {
               updated.push({
                 id: toolUseId,
-                name: 'Tool',
+                name: toolName,
                 status: 'complete',
                 startedAt: timestamp,
                 completedAt: timestamp,
