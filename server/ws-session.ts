@@ -113,16 +113,21 @@ export class ConversationSession {
     const itineraryPath = `${dataRoot}/trips/${this.tripId}/itinerary.md`;
 
     return [
-      `CURRENT TRIP CONTEXT (use these paths, don't search for other trips):`,
-      `- Trip: ${trip?.name ?? this.tripId} (id: ${this.tripId})`,
-      `- Itinerary: ${itineraryPath}`,
-      `- Preferences: ${dataRoot}/trips/${this.tripId}/prefs.json`,
-      `- Uploads: ${dataRoot}/trips/${this.tripId}/uploads/`,
-      `- Assets: ${dataRoot}/trips/${this.tripId}/assets/`,
+      `<CURRENT_TRIP_CONTEXT>`,
+      `This is the active trip. Do not ask which trip - use this one.`,
       ``,
-      `When the user asks about "the itinerary" or "my trip", they mean THIS trip.`,
-      `If the user says "update itinerary", read ${itineraryPath} and ask what changes to make (do not ask which trip).`,
-      `Read ${itineraryPath} before answering questions about the itinerary.`,
+      `trip_name: ${trip?.name ?? this.tripId}`,
+      `trip_id: ${this.tripId}`,
+      `itinerary_path: ${itineraryPath}`,
+      `preferences_path: ${dataRoot}/trips/${this.tripId}/prefs.json`,
+      `uploads_path: ${dataRoot}/trips/${this.tripId}/uploads/`,
+      `assets_path: ${dataRoot}/trips/${this.tripId}/assets/`,
+      `</CURRENT_TRIP_CONTEXT>`,
+      ``,
+      `<action_required>`,
+      `For ANY itinerary update request: immediately call Skill tool with skill="travel-planner"`,
+      `Pass the user's request as the args parameter.`,
+      `</action_required>`,
     ].join("\n");
   }
 
@@ -232,12 +237,14 @@ export class ConversationSession {
   }
 
   private async handleSdkMessage(message: SDKMessage): Promise<void> {
+    const messageType = (message as any).type as string | undefined;
+
     // Log all non-stream messages with detailed info
-    if (message.type !== "stream_event") {
+    if (messageType !== "stream_event") {
       const msgAny = message as any;
 
       // Check for tool use in assistant messages (tools are in message.message.content array)
-      if (message.type === "assistant" && msgAny.message?.content) {
+      if (messageType === "assistant" && msgAny.message?.content) {
         const content = msgAny.message.content;
         if (Array.isArray(content)) {
           for (const block of content) {
@@ -249,23 +256,23 @@ export class ConversationSession {
       }
 
       // Check for tool_result message type
-      if (message.type === "tool_result") {
+      if (messageType === "tool_result") {
         const result = typeof msgAny.content === "string" ? msgAny.content : JSON.stringify(msgAny.content ?? "");
         console.log(`[ToolResult]:`, result.slice(0, 300) + (result.length > 300 ? "..." : ""));
       }
 
       // Log other message types
-      if (message.type !== "assistant" && message.type !== "tool_result") {
-        console.log(`[SDKMessage] type=${message.type}`, msgAny.subtype ? `subtype=${msgAny.subtype}` : "");
+      if (messageType !== "assistant" && messageType !== "tool_result") {
+        console.log(`[SDKMessage] type=${messageType}`, msgAny.subtype ? `subtype=${msgAny.subtype}` : "");
       }
     }
 
-    if (message.type === "stream_event") {
+    if (messageType === "stream_event") {
       this.handleStreamEvent((message as any).event);
       return;
     }
 
-    if (message.type === "system" && (message as any).subtype === "init") {
+    if (messageType === "system" && (message as any).subtype === "init") {
       const sid = (message as any).session_id as string | undefined;
       if (sid) {
         this.sdkSessionId = sid;
@@ -275,7 +282,7 @@ export class ConversationSession {
       return;
     }
 
-    if (message.type === "assistant") {
+    if (messageType === "assistant") {
       const toolBlocks = (message as any)?.message?.content;
       if (Array.isArray(toolBlocks)) {
         for (const block of toolBlocks) {
@@ -299,12 +306,12 @@ export class ConversationSession {
       return;
     }
 
-    if (message.type === "tool_result") {
+    if (messageType === "tool_result") {
       this.broadcastToolResult(message);
       return;
     }
 
-    if (message.type === "result") {
+    if (messageType === "result") {
       const subtype = (message as any).subtype;
       console.log(`[Result] ${subtype}, cost=$${(message as any).total_cost_usd?.toFixed(4) ?? "?"}, duration=${(message as any).duration_ms ?? "?"}ms`);
       if (subtype === "success") {

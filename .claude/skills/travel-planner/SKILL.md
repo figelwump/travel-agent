@@ -8,6 +8,14 @@ allowed-tools: Read, Write, Edit, MultiEdit, Bash, Glob, WebSearch, WebFetch
 
 Create and maintain a living markdown itinerary for a trip, plus lightweight structured preferences ("prefs") for personalization.
 
+## IMPORTANT: Active Trip Context
+
+When invoked, check for `<CURRENT_TRIP_CONTEXT>` in the system message. If present:
+- **Use the provided paths directly** — do not search for trips
+- **Do not ask "which trip?"** — the context tells you which trip is active
+- **Read the itinerary immediately** from `itinerary_path` and proceed with the user's request
+- **Execute directly** — if the user says "update to 5 days", just do it
+
 ## Configuration
 
 **Resource root (do not `cd` here):** `$SKILL_ROOT` = `.claude/skills/travel-planner`
@@ -26,36 +34,38 @@ Each trip is a directory:
 
 ## Workflow
 
-1. **Determine trip mode**
-   - Ask: "Is this a new trip, or do you want me to update an existing itinerary?"
-   - If existing: request the current itinerary + any constraints/bookings/changes.
-   - If a system message provides CURRENT TRIP CONTEXT with explicit paths, treat those paths as authoritative and write only to the provided itinerary path (do not infer trip paths from names).
+1. **Check for active trip context FIRST**
+   - If a system message provides `<CURRENT_TRIP_CONTEXT>` or "CURRENT TRIP CONTEXT", use those paths immediately.
+   - Do NOT ask "which trip?" — the context tells you which trip is active.
+   - Read the itinerary at the provided `itinerary_path` before proceeding.
 
-2. **Interview for preferences (new trip)**
-   - Destination(s) and approximate dates
-   - Travelers (adults/kids + ages), mobility constraints
-   - Budget range, pace (fast/slow), interests (nature/city/food/museums/beach)
-   - Lodging style, transportation preferences
-   - Must-dos / avoid list
+2. **Determine trip mode (only if NO trip context provided)**
+   - Only ask about new vs existing trip if there is no CURRENT_TRIP_CONTEXT in the system message.
+   - If context is provided: proceed directly with the user's request.
 
-3. **Confirm before drafting**
-   - Ask: "Do you want me to create/update the itinerary now?"
+3. **Interview for preferences (new trip only)**
+   - Skip this if updating an existing itinerary with clear user instructions.
+   - For new trips: ask about destination, dates, travelers, budget, pace, interests.
 
-4. **Verify time-sensitive details**
+4. **Execute the user's request directly**
+   - If the user says "update to 5 days" or "add a beach day", do it without asking for confirmation.
+   - Only ask clarifying questions if the request is genuinely ambiguous.
+
+5. **Verify time-sensitive details (if adding new activities)**
    - Use WebSearch/WebFetch to confirm hours, closure days, admission rules, and ticketing for museums/attractions.
    - Prefer official venue websites; cross-check with reputable secondary sources if needed.
    - Update the itinerary and TODOs with verified details and link the venue name to the official site.
    - Keep Google Maps links for locations (add a maps link if the venue name links to the official site).
    - If verification fails, keep the TODO and ask the user for confirmation.
 
-5. **Draft/update the itinerary (markdown)**
+6. **Draft/update the itinerary (markdown)**
    - Use headings for hierarchy and optional `<details>` blocks for collapsible day sections.
    - **Link inline at first mention** — see `$SKILL_ROOT/reference/inline-linking.md` for examples.
    - Add 2–3 thumbnail-sized images per **day section**, chosen from that day's key activities/locations (stable public URLs preferred; Wikimedia/Wikipedia are ideal).
    - If the itinerary is high-level (no day sections yet), add 1–2 images per destination section instead.
    - Track open decisions and bookings as TODO task items (`- [ ]` / `- [x]`).
 
-6. **Persist**
+7. **Persist**
    - Write the updated markdown to `itinerary.md`.
    - Write inferred preferences to `prefs.json` (only what the user has stated or clearly implied).
 
