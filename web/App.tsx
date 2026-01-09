@@ -280,6 +280,7 @@ const App: React.FC = () => {
             };
             return next;
           });
+          delete toolUseToMessageRef.current[toolUseId];
           break;
         }
         case 'assistant_partial': {
@@ -371,6 +372,7 @@ const App: React.FC = () => {
           });
 
           setIsLoading(false);
+          toolActivityMessageIdRef.current = null;
           break;
         }
         case 'result': {
