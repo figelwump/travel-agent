@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useWebSocket } from "./hooks/useWebSocket";
-import { Message, TextBlock } from "./components/message/types";
+import { Message, TextBlock, ToolActivity } from "./components/message/types";
 import { ChatPanel } from "./components/ChatPanel";
 import { ItineraryPane } from "./components/ItineraryPane";
 
@@ -73,6 +73,7 @@ async function apiFetch<T>(
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [toolActivity, setToolActivity] = useState<ToolActivity[]>([]);
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [passwordInput, setPasswordInput] = useState('');
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -155,6 +156,66 @@ const App: React.FC = () => {
           console.log('Connected to server:', message.message);
           setConnectionError(null);
           setHasEverConnected(true);
+          break;
+        }
+        case 'tool_use': {
+          if (message.tripId !== activeTripId || message.conversationId !== activeConversationId) break;
+          const tool = message.tool;
+          if (!tool || !tool.id) break;
+          const timestamp = message.timestamp || new Date().toISOString();
+          setToolActivity(prev => {
+            const existingIndex = prev.findIndex(item => item.id === tool.id);
+            if (existingIndex >= 0) {
+              const next = [...prev];
+              next[existingIndex] = {
+                ...next[existingIndex],
+                name: tool.name ?? next[existingIndex].name,
+                input: tool.input ?? next[existingIndex].input,
+                status: 'running',
+                startedAt: next[existingIndex].startedAt || timestamp,
+              };
+              return next;
+            }
+            return [
+              ...prev,
+              {
+                id: tool.id,
+                name: tool.name ?? 'Tool',
+                input: tool.input ?? {},
+                status: 'running',
+                startedAt: timestamp,
+              }
+            ];
+          });
+          break;
+        }
+        case 'tool_result': {
+          if (message.tripId !== activeTripId || message.conversationId !== activeConversationId) break;
+          const toolUseId = message.tool_use_id;
+          if (!toolUseId) break;
+          const timestamp = message.timestamp || new Date().toISOString();
+          setToolActivity(prev => {
+            const existingIndex = prev.findIndex(item => item.id === toolUseId);
+            if (existingIndex >= 0) {
+              const next = [...prev];
+              next[existingIndex] = {
+                ...next[existingIndex],
+                status: 'complete',
+                completedAt: timestamp,
+              };
+              return next;
+            }
+            return [
+              ...prev,
+              {
+                id: toolUseId,
+                name: 'Tool',
+                status: 'complete',
+                startedAt: timestamp,
+                completedAt: timestamp,
+              }
+            ];
+          });
           break;
         }
         case 'assistant_partial': {
@@ -260,6 +321,11 @@ const App: React.FC = () => {
           streamingMessageIdRef.current = null;
           setIsLoading(false);
           queryInProgressRef.current = false;
+          setToolActivity(prev => prev.map(tool => (
+            tool.status === 'running'
+              ? { ...tool, status: 'complete', completedAt: tool.completedAt ?? new Date().toISOString() }
+              : tool
+          )));
           if (pendingItineraryRefreshRef.current) {
             pendingItineraryRefreshRef.current = false;
             refreshItinerary();
@@ -390,6 +456,7 @@ const App: React.FC = () => {
     setConversations([]);
     setActiveConversationId(null);
     setMessages([]);
+    setToolActivity([]);
     setItineraryMarkdown('');
     setIsLoading(false);
     streamingMessageIdRef.current = null;
@@ -407,6 +474,7 @@ const App: React.FC = () => {
     if (!activeTripId || !activeConversationId || !credentials) return;
     setIsLoading(false);
     streamingMessageIdRef.current = null;
+    setToolActivity([]);
     refreshMessages(activeTripId, activeConversationId);
     sendMessage({ type: 'subscribe', tripId: activeTripId, conversationId: activeConversationId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -431,6 +499,7 @@ const App: React.FC = () => {
     setPasswordInput('');
     setConnectionError(null);
     setMessages([]);
+    setToolActivity([]);
     setTrips([]);
     setActiveTripId(null);
     setConversations([]);
@@ -544,6 +613,7 @@ const App: React.FC = () => {
         const timestamp = new Date().toISOString();
         const userMessage: Message = { id: Date.now().toString(), type: 'user', content: initPrompt, timestamp };
         setMessages(prev => [...prev, userMessage]);
+        setToolActivity([]);
         setIsLoading(true);
         sendMessage({ type: 'chat', tripId: res.data.id, conversationId: convRes.data.id, content: initPrompt });
       }, 300);
@@ -568,6 +638,7 @@ const App: React.FC = () => {
     const timestamp = new Date().toISOString();
     const userMessage: Message = { id: Date.now().toString(), type: 'user', content: text, timestamp };
     setMessages(prev => [...prev, userMessage]);
+    setToolActivity([]);
     setIsLoading(true);
     sendMessage({ type: 'chat', tripId: activeTripId, conversationId: activeConversationId, content: text });
   };
@@ -753,6 +824,7 @@ const App: React.FC = () => {
               isConnected={isConnected}
               isLoading={isLoading}
               messages={messages}
+              toolActivity={toolActivity}
               draft={activeDraft}
               setDraft={setDraftForActiveTrip}
               textareaHeight={activeDraftHeight}

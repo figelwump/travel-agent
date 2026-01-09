@@ -31,10 +31,21 @@ export interface BaseMessage {
     text: string;
   }
   
-export interface ToolResult {
+  export interface ToolResult {
     tool_use_id: string;
     type: 'tool_result';
     content: string;
+  }
+
+  export type ToolActivityStatus = 'running' | 'complete';
+
+  export interface ToolActivity {
+    id: string;
+    name: string;
+    input?: Record<string, any>;
+    status: ToolActivityStatus;
+    startedAt: string;
+    completedAt?: string;
   }
 
   export interface AssistantMessage extends BaseMessage {

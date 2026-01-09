@@ -158,6 +158,31 @@ export class ConversationSession {
     }
   }
 
+  private broadcastToolUse(tool: any) {
+    if (!tool?.id || !tool?.name) return;
+    this.broadcast({
+      type: "tool_use",
+      tool,
+      timestamp: nowIso(),
+      tripId: this.tripId,
+      conversationId: this.conversationId,
+    });
+  }
+
+  private broadcastToolResult(result: any) {
+    const toolUseId = result?.tool_use_id;
+    if (!toolUseId) return;
+    this.broadcast({
+      type: "tool_result",
+      tool_use_id: toolUseId,
+      content: result?.content ?? "",
+      is_error: Boolean(result?.is_error),
+      timestamp: nowIso(),
+      tripId: this.tripId,
+      conversationId: this.conversationId,
+    });
+  }
+
   async addUserMessage(content: string): Promise<void> {
     if (this.queryPromise) await this.queryPromise;
     await this.ensureConversationLoaded();
@@ -244,6 +269,14 @@ export class ConversationSession {
     }
 
     if (message.type === "assistant") {
+      const toolBlocks = (message as any)?.message?.content;
+      if (Array.isArray(toolBlocks)) {
+        for (const block of toolBlocks) {
+          if (block?.type === "tool_use") {
+            this.broadcastToolUse(block);
+          }
+        }
+      }
       const text = joinAssistantText(message);
       if (text) {
         console.log(`[AssistantResponse] ${text.slice(0, 300)}${text.length > 300 ? "..." : ""}`);
@@ -256,6 +289,11 @@ export class ConversationSession {
         await storage.appendMessage(this.tripId, this.conversationId, msg);
         this.broadcast({ type: "assistant_message", content: text, tripId: this.tripId, conversationId: this.conversationId });
       }
+      return;
+    }
+
+    if (message.type === "tool_result") {
+      this.broadcastToolResult(message);
       return;
     }
 
