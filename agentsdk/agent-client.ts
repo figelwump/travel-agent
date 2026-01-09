@@ -41,6 +41,7 @@ export interface AgentQueryOptions {
   includePartialMessages?: boolean;
   allowedTools?: string[];
   appendSystemPrompt?: string;
+  allowedTripId?: string | null;
   hooks?: any;
   env?: NodeJS.ProcessEnv;
   settingSources?: SettingSource[];
@@ -50,6 +51,7 @@ export interface AgentQueryOptions {
 
 export class AgentClient {
   private defaultOptions: AgentQueryOptions;
+  private allowedTripId: string | null = null;
 
   constructor(options?: Partial<AgentQueryOptions>) {
     this.defaultOptions = {
@@ -90,6 +92,10 @@ export class AgentClient {
                 // Resolve home directory if ~ is used
                 let homeDir = process.env.HOME || process.env.USERPROFILE || '';
                 const normalizedSandboxPath = path.resolve(homeDir, '.travelagent');
+                const allowedTripId = this.allowedTripId;
+                const normalizedAllowedPath = allowedTripId
+                  ? path.resolve(normalizedSandboxPath, 'trips', allowedTripId)
+                  : normalizedSandboxPath;
                 let normalizedFilePath: string;
                 if (filePath.startsWith('~')) {
                   // Expand tilde to home directory
@@ -98,10 +104,15 @@ export class AgentClient {
                   normalizedFilePath = path.resolve(filePath);
                 }
 
-                if (!normalizedFilePath.startsWith(normalizedSandboxPath + path.sep)) {
-                    return {
-                      decision: 'block',
-                    stopReason: `Writes and edits are only allowed inside the ~/.travelagent directory. Please use a path under: ${normalizedSandboxPath}/`,
+                const allowedRootMatch = normalizedFilePath === normalizedAllowedPath
+                  || normalizedFilePath.startsWith(normalizedAllowedPath + path.sep);
+                if (!allowedRootMatch) {
+                  const scopeLabel = allowedTripId
+                    ? `~/.travelagent/trips/${allowedTripId}`
+                    : `~/.travelagent`;
+                  return {
+                    decision: 'block',
+                    stopReason: `Writes and edits are only allowed inside ${scopeLabel}. Please use a path under: ${normalizedAllowedPath}/`,
                     continue: false
                   };
                 }
@@ -132,11 +143,17 @@ export class AgentClient {
     mergedOptions.env = buildVenvEnv(mergedOptions.env);
     mergedOptions.includePartialMessages = true;
 
-    for await (const message of query({
-      prompt,
-      options: mergedOptions
-    })) {
-      yield message;
+    const previousAllowedTripId = this.allowedTripId;
+    this.allowedTripId = mergedOptions.allowedTripId ?? null;
+    try {
+      for await (const message of query({
+        prompt,
+        options: mergedOptions
+      })) {
+        yield message;
+      }
+    } finally {
+      this.allowedTripId = previousAllowedTripId;
     }
   }
 

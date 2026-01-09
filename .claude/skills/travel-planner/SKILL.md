@@ -29,6 +29,7 @@ Each trip is a directory:
 1. **Determine trip mode**
    - Ask: "Is this a new trip, or do you want me to update an existing itinerary?"
    - If existing: request the current itinerary + any constraints/bookings/changes.
+   - If a system message provides CURRENT TRIP CONTEXT with explicit paths, treat those paths as authoritative and write only to the provided itinerary path (do not infer trip paths from names).
 
 2. **Interview for preferences (new trip)**
    - Destination(s) and approximate dates

@@ -213,7 +213,11 @@ export class ConversationSession {
         const options = this.sdkSessionId ? { resume: this.sdkSessionId } : {};
         console.log(`[AgentQuery] Starting query, resume=${!!this.sdkSessionId}`);
 
-        for await (const message of this.agentClient.queryStream(content, { ...options, appendSystemPrompt: ctxPrompt })) {
+        for await (const message of this.agentClient.queryStream(content, {
+          ...options,
+          appendSystemPrompt: ctxPrompt,
+          allowedTripId: this.tripId,
+        })) {
           await this.handleSdkMessage(message);
         }
       } catch (err: any) {
