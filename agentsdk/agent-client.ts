@@ -68,7 +68,9 @@ export class AgentClient {
         "Skill",
       ],
       appendSystemPrompt: SANDBOX_SYSTEM_PROMPT,
-      settingSources: ["project", "user"], // Load project and user-level skills
+      settingSources: ["project"], // Avoid user-level plugins/tools (e.g., browser MCP)
+      plugins: [],
+      mcpServers: {},
       stderr: (msg: string) => console.error("[claude-sdk]", msg.trim()),
       hooks: {
         PreToolUse: [
