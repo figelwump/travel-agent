@@ -409,6 +409,10 @@ const App: React.FC = () => {
           // noop in UI for now (context refresh happens on next message)
           break;
         }
+        case 'trips_updated': {
+          refreshTrips();
+          break;
+        }
         case 'auth_failed': {
           // Auth failed - clear credentials and show login
           console.error('Authentication failed:', message.error);

@@ -261,6 +261,26 @@ export class ConversationSession {
     });
   }
 
+  private handleToolResultSideEffects(toolUseId: string) {
+    const activity = this.pendingToolActivity.get(toolUseId);
+    if (!activity) return;
+    if (activity.name === "update_entity") {
+      const entityType = String(activity.input?.entityType ?? "");
+      if (entityType === "context") {
+        this.broadcast({ type: "context_updated", tripId: this.tripId });
+      }
+      if (entityType === "trip") {
+        this.broadcast({ type: "trips_updated", tripId: this.tripId });
+      }
+    }
+    if (activity.name === "create_entity") {
+      const entityType = String(activity.input?.entityType ?? "");
+      if (entityType === "trip") {
+        this.broadcast({ type: "trips_updated", tripId: this.tripId });
+      }
+    }
+  }
+
   async addUserMessage(content: string): Promise<void> {
     if (this.queryPromise) await this.queryPromise;
     await this.ensureConversationLoaded();
@@ -386,6 +406,8 @@ export class ConversationSession {
 
     if (messageType === "tool_result") {
       this.recordToolResult(message);
+      const toolUseId = (message as any)?.tool_use_id;
+      if (toolUseId) this.handleToolResultSideEffects(toolUseId);
       this.broadcastToolResult(message);
       return;
     }
