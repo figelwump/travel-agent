@@ -39,6 +39,14 @@ export class ConversationSession {
   private sdkSessionId: string | null = null;
   private partialTextBuffer: string | null = null;
   private itineraryMtimeBeforeQuery: number | null = null;
+  private pendingToolActivity = new Map<string, {
+    id: string;
+    name: string;
+    input: Record<string, unknown>;
+    status: "running" | "complete";
+    startedAt: string;
+    completedAt?: string;
+  }>();
 
   constructor({ tripId, conversationId }: ConversationSessionParams) {
     this.tripId = tripId;
@@ -191,6 +199,37 @@ export class ConversationSession {
     });
   }
 
+  private recordToolUse(tool: any) {
+    if (!tool?.id || !tool?.name) return;
+    if (this.pendingToolActivity.has(tool.id)) return;
+    this.pendingToolActivity.set(tool.id, {
+      id: tool.id,
+      name: tool.name,
+      input: tool.input ?? {},
+      status: "running",
+      startedAt: nowIso(),
+    });
+  }
+
+  private recordToolResult(result: any) {
+    const toolUseId = result?.tool_use_id;
+    if (!toolUseId) return;
+    const existing = this.pendingToolActivity.get(toolUseId);
+    if (existing) {
+      existing.status = "complete";
+      existing.completedAt = nowIso();
+      return;
+    }
+    this.pendingToolActivity.set(toolUseId, {
+      id: toolUseId,
+      name: result?.name ?? result?.tool_name ?? "Tool",
+      input: {},
+      status: "complete",
+      startedAt: nowIso(),
+      completedAt: nowIso(),
+    });
+  }
+
   async addUserMessage(content: string): Promise<void> {
     if (this.queryPromise) await this.queryPromise;
     await this.ensureConversationLoaded();
@@ -288,25 +327,30 @@ export class ConversationSession {
         for (const block of toolBlocks) {
           if (block?.type === "tool_use") {
             this.broadcastToolUse(block);
+            this.recordToolUse(block);
           }
         }
       }
       const text = joinAssistantText(message);
       if (text) {
         console.log(`[AssistantResponse] ${text.slice(0, 300)}${text.length > 300 ? "..." : ""}`);
+        const toolActivity = Array.from(this.pendingToolActivity.values());
         const msg: storage.StoredMessage = {
           id: crypto.randomUUID(),
           type: "assistant",
           content: text,
           timestamp: nowIso(),
+          metadata: toolActivity.length > 0 ? { toolActivity } : undefined,
         };
         await storage.appendMessage(this.tripId, this.conversationId, msg);
         this.broadcast({ type: "assistant_message", content: text, tripId: this.tripId, conversationId: this.conversationId });
+        this.pendingToolActivity.clear();
       }
       return;
     }
 
     if (messageType === "tool_result") {
+      this.recordToolResult(message);
       this.broadcastToolResult(message);
       return;
     }
@@ -329,6 +373,7 @@ export class ConversationSession {
       }
       // Check if itinerary was modified by agent tools (Write/Edit)
       await this.checkAndBroadcastItineraryChange();
+      this.pendingToolActivity.clear();
       return;
     }
 

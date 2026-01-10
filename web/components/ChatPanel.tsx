@@ -28,7 +28,7 @@ interface ChatPanelProps {
   onUploadFiles: (files: FileList) => void;
   tripName: string | null;
   conversationTitle: string | null;
-  textareaRef?: React.RefObject<HTMLTextAreaElement>;
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 export function ChatPanel({

@@ -380,7 +380,7 @@ const App: React.FC = () => {
           if (message.success) {
             console.log('Query completed successfully', message);
             // Refresh conversations to pick up any title updates from background agents
-            refreshConversations(activeTripId);
+            refreshConversations(message.tripId);
           } else {
             console.error('Query failed:', message.error);
           }
