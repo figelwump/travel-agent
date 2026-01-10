@@ -60,7 +60,7 @@ Optional:
 
 ## Notes
 
-- The agent can persist itinerary and prefs via special markers in its output (see `.claude/skills/travel-planner`).
+- The agent can persist itinerary and context via tools and shared files.
 - Trips organize chats + itinerary + uploads by destination name.
 
 ## Using a Claude Max/Pro OAuth token instead of an API key

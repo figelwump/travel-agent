@@ -404,6 +404,7 @@ const App: React.FC = () => {
           refreshItinerary();
           break;
         }
+        case 'context_updated':
         case 'prefs_updated': {
           // noop in UI for now (context refresh happens on next message)
           break;

@@ -3,6 +3,7 @@ import { AgentClient } from "../agentsdk/agent-client";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import * as storage from "./storage";
 import * as fs from "fs/promises";
+import { entityTools, completionTools } from "./tools";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -24,6 +25,17 @@ function joinAssistantText(message: any): string {
   return "";
 }
 
+function generateTitleFromMessage(message: string): string {
+  const cleaned = message.replace(/\s+/g, " ").trim();
+  if (!cleaned) return "Chat";
+  const words = cleaned
+    .split(" ")
+    .map((word) => word.replace(/^[^\w]+|[^\w]+$/g, ""))
+    .filter(Boolean);
+  const title = words.slice(0, 6).join(" ").trim();
+  return title ? title.slice(0, 80) : "Chat";
+}
+
 type ConversationSessionParams = {
   tripId: string;
   conversationId: string;
@@ -39,6 +51,7 @@ export class ConversationSession {
   private sdkSessionId: string | null = null;
   private partialTextBuffer: string | null = null;
   private itineraryMtimeBeforeQuery: number | null = null;
+  private lastUserMessage: string | null = null;
   private pendingToolActivity = new Map<string, {
     id: string;
     name: string;
@@ -118,25 +131,43 @@ export class ConversationSession {
   private async buildTripContextPrompt(): Promise<string> {
     const trip = await storage.getTrip(this.tripId);
     const dataRoot = storage.travelAgentHome();
-    const itineraryPath = `${dataRoot}/trips/${this.tripId}/itinerary.md`;
+    const itinerary = await storage.readItinerary(this.tripId);
+    const context = await storage.readContext(this.tripId);
+    const todoMatches = itinerary.match(/- \\[ \\]/g) || [];
+    const doneMatches = itinerary.match(/- \\[x\\]/gi) || [];
 
     return [
-      `<CURRENT_TRIP_CONTEXT>`,
-      `This is the active trip. Do not ask which trip - use this one.`,
+      `## Current Trip Context`,
       ``,
-      `trip_name: ${trip?.name ?? this.tripId}`,
-      `trip_id: ${this.tripId}`,
-      `itinerary_path: ${itineraryPath}`,
-      `preferences_path: ${dataRoot}/trips/${this.tripId}/prefs.json`,
-      `uploads_path: ${dataRoot}/trips/${this.tripId}/uploads/`,
-      `assets_path: ${dataRoot}/trips/${this.tripId}/assets/`,
-      `</CURRENT_TRIP_CONTEXT>`,
+      `**Trip:** ${trip?.name ?? this.tripId}`,
+      `**Trip ID:** ${this.tripId}`,
+      `**Pending TODOs:** ${todoMatches.length}`,
+      `**Completed TODOs:** ${doneMatches.length}`,
       ``,
-      `<action_required>`,
-      `For ANY itinerary update request: immediately call Skill tool with skill="travel-planner"`,
-      `Pass the user's request as the args parameter.`,
-      `</action_required>`,
+      `**Trip Data Paths:**`,
+      `- Itinerary: ${dataRoot}/trips/${this.tripId}/itinerary.md`,
+      `- Context: ${dataRoot}/trips/${this.tripId}/context.md`,
+      `- Uploads: ${dataRoot}/trips/${this.tripId}/uploads/`,
+      `- Assets: ${dataRoot}/trips/${this.tripId}/assets/`,
+      ``,
+      `**Known Context:**`,
+      context.trim() ? context : "(empty)",
     ].join("\n");
+  }
+
+  private isDefaultTitle(title?: string | null): boolean {
+    if (!title) return true;
+    const normalized = title.trim().toLowerCase();
+    return normalized === "chat" || normalized === "planning" || normalized === "question";
+  }
+
+  private async maybeUpdateConversationTitle(): Promise<void> {
+    if (!this.lastUserMessage) return;
+    const meta = await storage.getConversation(this.tripId, this.conversationId);
+    if (!meta || !this.isDefaultTitle(meta.title)) return;
+    const title = generateTitleFromMessage(this.lastUserMessage);
+    if (this.isDefaultTitle(title) || title === meta.title) return;
+    await storage.updateConversation(this.tripId, this.conversationId, { title });
   }
 
   private handleStreamEvent(event: any) {
@@ -233,6 +264,7 @@ export class ConversationSession {
   async addUserMessage(content: string): Promise<void> {
     if (this.queryPromise) await this.queryPromise;
     await this.ensureConversationLoaded();
+    this.lastUserMessage = content;
 
     console.log(`\n${"=".repeat(60)}`);
     console.log(`[UserMessage] tripId=${this.tripId} convId=${this.conversationId}`);
@@ -261,6 +293,7 @@ export class ConversationSession {
           ...options,
           appendSystemPrompt: ctxPrompt,
           allowedTripId: this.tripId,
+          tools: [...entityTools, ...completionTools],
         })) {
           await this.handleSdkMessage(message);
         }
@@ -345,6 +378,8 @@ export class ConversationSession {
         await storage.appendMessage(this.tripId, this.conversationId, msg);
         this.broadcast({ type: "assistant_message", content: text, tripId: this.tripId, conversationId: this.conversationId });
         this.pendingToolActivity.clear();
+        await this.maybeUpdateConversationTitle();
+        this.lastUserMessage = null;
       }
       return;
     }

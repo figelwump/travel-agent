@@ -1,6 +1,4 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance when working with code in this repository.
 
 ## Commands
 
@@ -39,9 +37,9 @@ This is a personal travel planning agent with a Bun server backend and React fro
 ### Server (`server/`)
 
 - **server.ts** - Bun HTTP server entry point. Handles routing, WebSocket upgrades, auth, and serves the web client with on-the-fly TypeScript/CSS transpilation via Bun.build and PostCSS/Tailwind.
-- **api.ts** - REST API handlers for trips, conversations, itineraries, prefs, uploads, and assets.
+- **api.ts** - REST API handlers for trips, conversations, itineraries, context, uploads, and assets.
 - **ws-handler.ts / ws-session.ts** - WebSocket connection management. `ConversationSession` manages per-conversation state and streams Claude Agent SDK responses to connected clients.
-- **storage.ts** - Filesystem-based persistence layer. All trip data lives under `~/.travelagent/trips/<tripId>/` (itinerary.md, prefs.json, uploads/, assets/, chats/).
+- **storage.ts** - Filesystem-based persistence layer. All trip data lives under `~/.travelagent/trips/<tripId>/` (itinerary.md, context.md, uploads/, assets/, chats/).
 - **nano-banana.ts** - General-purpose image generation client for Gemini/Nano Banana Pro API. Used by `storage.generateTripMap()` for trip maps.
 
 ### Agent SDK Integration (`agentsdk/`)
@@ -62,7 +60,6 @@ React SPA served directly by Bun (no separate build step). Key files:
 ### Skills (`.claude/skills/`)
 
 Claude Code skills for this project:
-- **travel-planner** - Core skill for planning trips, interviewing users, and maintaining itineraries.
 - **nano-banana** - Image generation skill using the Nano Banana Pro API.
 - **cron-manager** - Scheduled task management.
 
@@ -71,7 +68,7 @@ Claude Code skills for this project:
 Trip data stored at `~/.travelagent/trips/<tripId>/`:
 ```
 itinerary.md           # Source-of-truth markdown itinerary
-prefs.json             # User preferences (travelers, pace, interests)
+context.md             # Trip context (details, preferences, bookings)
 uploads/               # User-uploaded context files (PDFs, images)
 assets/                # Generated assets (itinerary-map.png/svg)
 chats/<conversationId>/

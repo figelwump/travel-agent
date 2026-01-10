@@ -105,13 +105,14 @@ export async function handleApiRequest(req: Request, url: URL, ctx?: HeaderCtx):
     return jsonResponse({ updated: result.updated }, 200, ctx);
   }
 
-  // prefs
-  if (segments[3] === "prefs" && segments.length === 4) {
-    if (req.method === "GET") return jsonResponse(await storage.readPrefs(tripId), 200, ctx);
+  // context
+  if (segments[3] === "context" && segments.length === 4) {
+    if (req.method === "GET") return textResponse(await storage.readContext(tripId), 200, ctx, "text/markdown");
     if (req.method === "PUT") {
       const body = await parseJson(req);
-      if (!body || typeof body !== "object") return badRequest("body must be an object", ctx);
-      return jsonResponse(await storage.mergePrefs(tripId, body), 200, ctx);
+      if (typeof body?.content !== "string") return badRequest("content must be a string", ctx);
+      await storage.writeContext(tripId, body.content);
+      return ok(ctx);
     }
     return notFound(ctx);
   }
@@ -145,10 +146,7 @@ export async function handleApiRequest(req: Request, url: URL, ctx?: HeaderCtx):
 
   if (segments[3] === "uploads" && segments.length === 4) {
     if (req.method === "GET") {
-      const dir = storage.uploadsDir(tripId);
-      await fs.mkdir(dir, { recursive: true });
-      const ents = await fs.readdir(dir, { withFileTypes: true });
-      const files = ents.filter((e) => e.isFile()).map((e) => e.name);
+      const files = await storage.listUploads(tripId);
       return jsonResponse({ files }, 200, ctx);
     }
 

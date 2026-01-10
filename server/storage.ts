@@ -60,8 +60,8 @@ function itineraryPath(tripId: string): string {
   return path.join(tripDir(tripId), "itinerary.md");
 }
 
-function prefsPath(tripId: string): string {
-  return path.join(tripDir(tripId), "prefs.json");
+function contextPath(tripId: string): string {
+  return path.join(tripDir(tripId), "context.md");
 }
 
 function conversationsRoot(tripId: string): string {
@@ -134,9 +134,9 @@ export async function createTrip(name: string): Promise<Trip> {
   const trip: Trip = { id, name: tripName, createdAt: t, updatedAt: t };
   await writeFileAtomic(tripMetaPath(id), JSON.stringify(trip, null, 2));
 
-  // Seed itinerary + prefs
+  // Seed itinerary + context
   await ensureItinerary(id, tripName);
-  await ensurePrefs(id);
+  await ensureContext(id);
 
   // Seed a default conversation
   await createConversation(id, "Planning");
@@ -145,6 +145,23 @@ export async function createTrip(name: string): Promise<Trip> {
 
 export async function getTrip(tripId: string): Promise<Trip | null> {
   return readJsonFile<Trip>(tripMetaPath(tripId));
+}
+
+export async function updateTrip(tripId: string, patch: Partial<Trip>): Promise<Trip | null> {
+  const current = await getTrip(tripId);
+  if (!current) return null;
+  const next: Trip = {
+    ...current,
+    ...patch,
+    id: current.id,
+    createdAt: current.createdAt,
+    updatedAt: nowIso(),
+  };
+  if (typeof next.name !== "string" || !next.name.trim()) {
+    next.name = current.name;
+  }
+  await writeFileAtomic(tripMetaPath(tripId), JSON.stringify(next, null, 2));
+  return next;
 }
 
 export async function touchTrip(tripId: string): Promise<void> {
@@ -228,31 +245,50 @@ export async function toggleTodoAtLine(tripId: string, line1Based: number): Prom
   return { updated: true, content: next };
 }
 
-export async function ensurePrefs(tripId: string): Promise<void> {
+export async function ensureContext(tripId: string): Promise<void> {
   try {
-    await fs.access(prefsPath(tripId));
+    await fs.access(contextPath(tripId));
   } catch (err: any) {
     if (err?.code !== "ENOENT") throw err;
-    await writeFileAtomic(prefsPath(tripId), JSON.stringify({ travelers: {}, preferences: {} }, null, 2));
+    const template = [
+      "# Trip Context",
+      "",
+      "## Trip Details",
+      "- Dates: TBD",
+      "- Travelers: TBD",
+      "",
+      "## Confirmed Bookings",
+      "- None yet",
+      "",
+      "## Preferences",
+      "- Pace: TBD",
+      "- Interests: TBD",
+      "- Dietary: TBD",
+      "",
+      "## Pending Decisions",
+      "- None yet",
+      "",
+      `## Last Updated`,
+      nowIso(),
+      "",
+    ].join("\n");
+    await writeFileAtomic(contextPath(tripId), template);
   }
 }
 
-export async function readPrefs(tripId: string): Promise<Record<string, unknown>> {
-  await ensurePrefs(tripId);
-  const raw = await fs.readFile(prefsPath(tripId), "utf8");
+export async function readContext(tripId: string): Promise<string> {
+  await ensureContext(tripId);
   try {
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    return {};
+    return await fs.readFile(contextPath(tripId), "utf8");
+  } catch (err: any) {
+    if (err?.code === "ENOENT") return "";
+    throw err;
   }
 }
 
-export async function mergePrefs(tripId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const current = await readPrefs(tripId);
-  const merged = { ...current, ...patch };
-  await writeFileAtomic(prefsPath(tripId), JSON.stringify(merged, null, 2));
+export async function writeContext(tripId: string, content: string): Promise<void> {
+  await writeFileAtomic(contextPath(tripId), content);
   await touchTrip(tripId);
-  return merged;
 }
 
 export async function listConversations(tripId: string): Promise<Conversation[]> {
@@ -266,6 +302,13 @@ export async function listConversations(tripId: string): Promise<Conversation[]>
   }
   out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return out;
+}
+
+export async function listUploads(tripId: string): Promise<string[]> {
+  const dir = uploadsDir(tripId);
+  await fs.mkdir(dir, { recursive: true });
+  const ents = await fs.readdir(dir, { withFileTypes: true });
+  return ents.filter((e) => e.isFile()).map((e) => e.name);
 }
 
 export async function createConversation(tripId: string, title?: string): Promise<Conversation> {

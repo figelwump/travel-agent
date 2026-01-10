@@ -1,4 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import type { SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk";
 import type { HookJSONOutput, SettingSource, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import * as path from "path";
 import { SANDBOX_SYSTEM_PROMPT } from "./system-prompt";
@@ -40,6 +41,7 @@ export interface AgentQueryOptions {
   model?: string;
   includePartialMessages?: boolean;
   allowedTools?: string[];
+  tools?: Array<SdkMcpToolDefinition<any>>;
   appendSystemPrompt?: string;
   allowedTripId?: string | null;
   hooks?: any;
@@ -61,7 +63,8 @@ export class AgentClient {
       includePartialMessages: true,
       allowedTools: [
         "Task", "Bash", "Glob", "Grep", "LS", "ExitPlanMode", "Read", "Edit", "MultiEdit", "Write", "NotebookEdit",
-        "WebFetch", "TodoWrite", "WebSearch", "BashOutput", "KillBash", 
+        "WebFetch", "TodoWrite", "WebSearch", "BashOutput", "KillBash",
+        "list_entity_types", "list_entities", "read_entity", "create_entity", "update_entity", "toggle_todo", "complete_task",
         "Skill",
       ],
       appendSystemPrompt: SANDBOX_SYSTEM_PROMPT,
