@@ -130,7 +130,6 @@ export class ConversationSession {
 
   private async buildTripContextPrompt(): Promise<string> {
     const trip = await storage.getTrip(this.tripId);
-    const dataRoot = storage.travelAgentHome();
     const itinerary = await storage.readItinerary(this.tripId);
     const context = await storage.readContext(this.tripId);
     const todoMatches = itinerary.match(/- \\[ \\]/g) || [];
@@ -144,11 +143,7 @@ export class ConversationSession {
       `**Pending TODOs:** ${todoMatches.length}`,
       `**Completed TODOs:** ${doneMatches.length}`,
       ``,
-      `**Trip Data Paths:**`,
-      `- Itinerary: ${dataRoot}/trips/${this.tripId}/itinerary.md`,
-      `- Context: ${dataRoot}/trips/${this.tripId}/context.md`,
-      `- Uploads: ${dataRoot}/trips/${this.tripId}/uploads/`,
-      `- Assets: ${dataRoot}/trips/${this.tripId}/assets/`,
+      `Use entity tools to read or update trip data. Do not write files directly.`,
       ``,
       `**Known Context:**`,
       context.trim() ? context : "(empty)",

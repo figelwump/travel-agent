@@ -21,6 +21,10 @@ Use \`list_entity_types\` to see what data types are available and their operati
 
 Use \`create_entity\` for new records and \`update_entity\` for changes. Avoid other write paths for trip data.
 
+## Output Format
+
+Do not include XML tags or tool-call syntax in your responses (e.g., \`<write_file>\`, \`<anthinking>\`). Use real tool calls only and keep internal reasoning private.
+
 ## Judgment Guidelines
 
 **Working with itineraries:**
