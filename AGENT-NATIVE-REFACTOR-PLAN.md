@@ -509,7 +509,11 @@ server/tools/
 agentsdk/agent-client.ts    # Register custom tools in SDK config, update allowedTools
 agentsdk/system-prompt.ts   # Expand to comprehensive guide (behavior in prose)
 server/ws-session.ts        # Enhanced context injection, server-side title generation, handle complete_task
-server/storage.ts           # Add readContext/writeContext, listUploads; remove prefs.json code
+server/storage.ts           # Add readContext/writeContext, listUploads; remove prefs.json code; updateTrip
+server/api.ts               # Replace prefs API with context API
+web/App.tsx                 # Handle context/trips update broadcasts
+README.md                   # Update prefs references to context
+CLAUDE.md                   # Update data model and API references
 ```
 
 ### Deprecated
@@ -524,6 +528,36 @@ prefs.json (per trip)                      # Consolidated into context.md
 .claude/skills/nano-banana/                # Still used via Skill tool for image generation
 .claude/skills/travel-planner/reference/   # Inject into system prompt
 ```
+
+---
+
+## Current Progress (Implemented)
+
+### Tools + Agent Wiring
+- Added `server/tools/entity-tools.ts`, `server/tools/completion-tools.ts`, `server/tools/index.ts`
+- Registered inline tools in `server/ws-session.ts` and allowlisted in `agentsdk/agent-client.ts`
+- Disabled user-level plugins/MCP tools to avoid unintended browser tool use
+
+### Storage + API
+- Replaced `prefs.json` with `context.md` in `server/storage.ts`
+- Added `readContext`/`writeContext`, `updateTrip`, and `listUploads`
+- Replaced `/prefs` API with `/context` in `server/api.ts`
+
+### Prompt + Context Injection
+- Expanded `agentsdk/system-prompt.ts` with agent-native guidance
+- Added explicit “no XML/tool-tag output” rule to prevent `<write_file>` / `<anthinking>` leaks
+- Updated `server/ws-session.ts` context injection (removed file paths, added TODO counts + context)
+- Server-side chat title generation from the first user message
+
+### UI + Docs
+- Broadcast `context_updated` and `trips_updated` events on tool results
+- UI listens for `trips_updated` and refreshes trip list
+- Updated `README.md` and `CLAUDE.md` to reflect `context.md`
+
+### Known Gaps / Next Steps
+- Add UI for viewing/editing `context.md` (optional)
+- Verify tool-based itinerary edits avoid XML output in assistant messages
+- Update any remaining refs to `prefs` in tests or docs (if present)
 
 ---
 
