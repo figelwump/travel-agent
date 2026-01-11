@@ -25,6 +25,17 @@ function joinAssistantText(message: any): string {
   return "";
 }
 
+function sanitizeAssistantText(text: string): string {
+  return text
+    .replace(/<anthinking>[\s\S]*?<\/anthinking>/gi, "")
+    .replace(/<write_file>[\s\S]*?<\/write_file>/gi, "")
+    .replace(/<read_file>[\s\S]*?<\/read_file>/gi, "")
+    .replace(/<edit_file>[\s\S]*?<\/edit_file>/gi, "")
+    .replace(/<multi_edit>[\s\S]*?<\/multi_edit>/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function generateTitleFromMessage(message: string): string {
   const cleaned = message.replace(/\s+/g, " ").trim();
   if (!cleaned) return "Chat";
@@ -380,18 +391,19 @@ export class ConversationSession {
         }
       }
       const text = joinAssistantText(message);
-      if (text) {
-        console.log(`[AssistantResponse] ${text.slice(0, 300)}${text.length > 300 ? "..." : ""}`);
+      const cleanedText = text ? sanitizeAssistantText(text) : "";
+      if (cleanedText) {
+        console.log(`[AssistantResponse] ${cleanedText.slice(0, 300)}${cleanedText.length > 300 ? "..." : ""}`);
         const toolActivity = Array.from(this.pendingToolActivity.values());
         const msg: storage.StoredMessage = {
           id: crypto.randomUUID(),
           type: "assistant",
-          content: text,
+          content: cleanedText,
           timestamp: nowIso(),
           metadata: toolActivity.length > 0 ? { toolActivity } : undefined,
         };
         await storage.appendMessage(this.tripId, this.conversationId, msg);
-        this.broadcast({ type: "assistant_message", content: text, tripId: this.tripId, conversationId: this.conversationId });
+        this.broadcast({ type: "assistant_message", content: cleanedText, tripId: this.tripId, conversationId: this.conversationId });
         this.pendingToolActivity.clear();
         await this.maybeUpdateConversationTitle();
         this.lastUserMessage = null;
