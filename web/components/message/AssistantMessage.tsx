@@ -17,18 +17,30 @@ function formatTimestamp(timestamp: string): string {
   });
 }
 
+// Strip MCP server prefix from tool names for cleaner display
+// e.g., "mcp__t__read_entity" -> "read_entity"
+function cleanToolName(name: string): string {
+  if (name.startsWith('mcp__')) {
+    const parts = name.split('__');
+    // mcp__servername__toolname -> toolname
+    return parts.length >= 3 ? parts.slice(2).join('__') : name;
+  }
+  return name;
+}
+
 function ToolUseComponent({ toolUse, expanded }: { toolUse: ToolUseBlock; expanded?: boolean }) {
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = expanded ?? internalExpanded;
   const canToggle = expanded === undefined;
   const toolName = toolUse.name === 'Skill' && toolUse.input?.skill
     ? `Skill: ${toolUse.input.skill}`
-    : toolUse.name;
+    : cleanToolName(toolUse.name);
 
   const formatToolDisplay = () => {
     const input = toolUse.input;
+    const name = cleanToolName(toolUse.name);
 
-    switch(toolUse.name) {
+    switch(name) {
       case 'Read':
         return (
           <div className="space-y-2">
@@ -75,7 +87,7 @@ function ToolUseComponent({ toolUse, expanded }: { toolUse: ToolUseBlock; expand
               <span className="mono-label" style={{ fontSize: '0.65rem' }}>File:</span>
               <code className="code-inline">{input.file_path}</code>
             </div>
-            {toolUse.name === 'Edit' ? (
+            {name === 'Edit' ? (
               <>
                 {input.replace_all && (
                   <div
@@ -527,7 +539,7 @@ export function AssistantMessage({ message }: AssistantMessageProps) {
     if (tool.name === 'Skill' && tool.input?.skill) {
       return `Skill: ${tool.input.skill}`;
     }
-    return tool.name || 'Tool';
+    return cleanToolName(tool.name) || 'Tool';
   };
 
   const formatToolSummary = (tool: ToolActivity) => {
@@ -535,8 +547,9 @@ export function AssistantMessage({ message }: AssistantMessageProps) {
     const truncate = (value: string, max = 72) => (
       value.length > max ? `${value.slice(0, max - 3)}...` : value
     );
+    const name = cleanToolName(tool.name);
 
-    switch (tool.name) {
+    switch (name) {
       case 'Skill':
         return input.skill ? `Run ${truncate(String(input.skill), 40)}` : 'Skill workflow';
       case 'Read':
@@ -558,6 +571,18 @@ export function AssistantMessage({ message }: AssistantMessageProps) {
         return input.subagent_type ? `Agent: ${input.subagent_type}` : 'Sub-agent task';
       case 'TodoWrite':
         return input.todos ? `${input.todos.length} todos` : 'Todo update';
+      // Entity tools
+      case 'read_entity':
+      case 'update_entity':
+      case 'create_entity':
+      case 'list_entities':
+        return input.entityType ? `${input.entityType}${input.id ? `: ${truncate(String(input.id), 30)}` : ''}` : 'Entity operation';
+      case 'list_entity_types':
+        return 'Discover entities';
+      case 'toggle_todo':
+        return input.lineNumber ? `Line ${input.lineNumber}` : 'Toggle checkbox';
+      case 'complete_task':
+        return input.summary ? truncate(String(input.summary), 50) : 'Task complete';
       default:
         return 'Working...';
     }

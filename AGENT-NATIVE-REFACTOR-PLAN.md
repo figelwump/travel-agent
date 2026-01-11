@@ -535,7 +535,7 @@ prefs.json (per trip)                      # Consolidated into context.md
 
 ### Tools + Agent Wiring
 - Added `server/tools/entity-tools.ts`, `server/tools/completion-tools.ts`, `server/tools/index.ts`
-- Registered inline tools in `server/ws-session.ts` and allowlisted in `agentsdk/agent-client.ts`
+- Custom tools registered via `createSdkMcpServer()` and passed through `mcpServers` option
 - Disabled user-level plugins/MCP tools to avoid unintended browser tool use
 
 ### Storage + API
@@ -545,19 +545,26 @@ prefs.json (per trip)                      # Consolidated into context.md
 
 ### Prompt + Context Injection
 - Expanded `agentsdk/system-prompt.ts` with agent-native guidance
-- Added explicit “no XML/tool-tag output” rule to prevent `<write_file>` / `<anthinking>` leaks
+- Added CRITICAL "no XML/tool-tag output" rule at top of system prompt
+- Added `sanitizeAssistantText()` to filter XML tags from both streaming and final output
 - Updated `server/ws-session.ts` context injection (removed file paths, added TODO counts + context)
 - Server-side chat title generation from the first user message
 
 ### UI + Docs
 - Broadcast `context_updated` and `trips_updated` events on tool results
 - UI listens for `trips_updated` and refreshes trip list
-- Updated `README.md` and `CLAUDE.md` to reflect `context.md`
+- Updated `README.md` and `CLAUDE.md` to reflect `context.md` and entity tools
+- Deprecated `travel-planner` skill (logic moved to system prompt)
+
+### XML Output Fix
+- Root cause: Conversation history contained XML-formatted tool calls from earlier sessions
+- Fix: `sanitizeAssistantText()` strips `<write_file>`, `<antthinking>`, etc. from both streaming partials and final messages
+- Fresh conversations with updated system prompt should not produce XML output
 
 ### Known Gaps / Next Steps
 - Add UI for viewing/editing `context.md` (optional)
-- Verify tool-based itinerary edits avoid XML output in assistant messages
-- Update any remaining refs to `prefs` in tests or docs (if present)
+- Test entity tools in fresh conversation to verify no XML leakage
+- Consider clearing old sdkSessionIds to prevent resume of corrupted sessions
 
 ---
 

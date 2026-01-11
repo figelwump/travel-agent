@@ -1,5 +1,4 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk";
 import type { HookJSONOutput, SettingSource, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import * as path from "path";
 import { SANDBOX_SYSTEM_PROMPT } from "./system-prompt";
@@ -41,7 +40,7 @@ export interface AgentQueryOptions {
   model?: string;
   includePartialMessages?: boolean;
   allowedTools?: string[];
-  tools?: Array<SdkMcpToolDefinition<any>>;
+  mcpServers?: Record<string, any>;
   appendSystemPrompt?: string;
   allowedTripId?: string | null;
   hooks?: any;
@@ -69,8 +68,6 @@ export class AgentClient {
       ],
       appendSystemPrompt: SANDBOX_SYSTEM_PROMPT,
       settingSources: ["project"], // Avoid user-level plugins/tools (e.g., browser MCP)
-      plugins: [],
-      mcpServers: {},
       stderr: (msg: string) => console.error("[claude-sdk]", msg.trim()),
       hooks: {
         PreToolUse: [

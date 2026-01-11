@@ -1,9 +1,16 @@
 import type { WSClient } from "./ws-types";
 import { AgentClient } from "../agentsdk/agent-client";
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import * as storage from "./storage";
 import * as fs from "fs/promises";
 import { entityTools, completionTools } from "./tools";
+
+// Create MCP server with custom entity tools
+// Short name "t" to minimize tool name prefix (mcp__t__read_entity)
+const entityMcpServer = createSdkMcpServer({
+  name: "t",
+  tools: [...entityTools, ...completionTools],
+});
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -26,14 +33,29 @@ function joinAssistantText(message: any): string {
 }
 
 function sanitizeAssistantText(text: string): string {
-  return text
+  let result = text
+    // Remove complete XML tool tags
+    .replace(/<antthinking>[\s\S]*?<\/antthinking>/gi, "")
     .replace(/<anthinking>[\s\S]*?<\/anthinking>/gi, "")
     .replace(/<write_file>[\s\S]*?<\/write_file>/gi, "")
     .replace(/<read_file>[\s\S]*?<\/read_file>/gi, "")
     .replace(/<edit_file>[\s\S]*?<\/edit_file>/gi, "")
     .replace(/<multi_edit>[\s\S]*?<\/multi_edit>/gi, "")
+    .replace(/<execute>[\s\S]*?<\/execute>/gi, "")
+    .replace(/<tool>[\s\S]*?<\/tool>/gi, "")
+    .replace(/<path>[\s\S]*?<\/path>/gi, "")
+    .replace(/<content>[\s\S]*?<\/content>/gi, "")
+    .replace(/<result>[\s\S]*?<\/result>/gi, "")
+    .replace(/<scratchpad>[\s\S]*?<\/scratchpad>/gi, "")
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+    // Remove incomplete/streaming XML tags at end of text
+    .replace(/<(?:antthinking|anthinking|write_file|read_file|edit_file|multi_edit|execute|tool|path|content|result|scratchpad|thinking)[^>]*$/i, "")
+    // Remove stray closing tags
+    .replace(/<\/(?:antthinking|anthinking|write_file|read_file|edit_file|multi_edit|execute|tool|path|content|result|scratchpad|thinking)>/gi, "")
+    // Clean up whitespace
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+  return result;
 }
 
 function generateTitleFromMessage(message: string): string {
@@ -194,9 +216,11 @@ export class ConversationSession {
           typeof event?.delta?.text === "string"
         ) {
           this.partialTextBuffer += event.delta.text;
+          // Sanitize streaming output to remove XML tool tags that shouldn't be shown
+          const sanitized = sanitizeAssistantText(this.partialTextBuffer);
           this.broadcast({
             type: "assistant_partial",
-            content: this.partialTextBuffer,
+            content: sanitized,
             tripId: this.tripId,
             conversationId: this.conversationId,
           });
@@ -319,7 +343,7 @@ export class ConversationSession {
           ...options,
           appendSystemPrompt: ctxPrompt,
           allowedTripId: this.tripId,
-          tools: [...entityTools, ...completionTools],
+          mcpServers: { "entity-tools": entityMcpServer },
         })) {
           await this.handleSdkMessage(message);
         }
