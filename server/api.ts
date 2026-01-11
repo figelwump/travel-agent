@@ -67,6 +67,11 @@ export async function handleApiRequest(req: Request, url: URL, ctx?: HeaderCtx):
 
   if (segments.length === 3) {
     if (req.method === "GET") return jsonResponse(await storage.getTrip(tripId), 200, ctx);
+    if (req.method === "DELETE") {
+      const deleted = await storage.deleteTrip(tripId);
+      if (!deleted) return notFound(ctx);
+      return ok(ctx);
+    }
     return notFound(ctx);
   }
 

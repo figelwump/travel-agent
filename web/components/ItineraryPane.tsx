@@ -119,6 +119,7 @@ interface ItineraryPaneProps {
   credentials: Credentials | null;
   markdown: string;
   onRefresh: () => void;
+  onDeleteTrip?: () => Promise<void> | void;
   onCollapse?: () => void;
   tripCreatedAt?: string | null;
   tripUpdatedAt?: string | null;
@@ -162,6 +163,7 @@ export function ItineraryPane({
   credentials,
   markdown,
   onRefresh,
+  onDeleteTrip,
   onCollapse,
   tripCreatedAt,
   tripUpdatedAt,
@@ -235,19 +237,14 @@ export function ItineraryPane({
     onRefresh();
   };
 
-  const handleDeleteItinerary = async () => {
-    if (!tripId || !credentials) return;
-    const okToDelete = confirm('Delete this itinerary? This cannot be undone.');
-    if (!okToDelete) return;
+  const handleDeleteTrip = async () => {
+    if (!onDeleteTrip) return;
     setIsSaving(true);
-    const res = await apiFetch(`/api/trips/${tripId}/itinerary`, { method: 'DELETE' }, credentials);
-    setIsSaving(false);
-    if (!res.ok) {
-      alert(`Delete failed: ${res.error}`);
-      return;
+    try {
+      await onDeleteTrip();
+    } finally {
+      setIsSaving(false);
     }
-    setIsEditing(false);
-    onRefresh();
   };
 
   const handleGenerateMap = async () => {
@@ -420,9 +417,9 @@ export function ItineraryPane({
           <button
             type="button"
             className="icon-btn"
-            onClick={handleDeleteItinerary}
-            disabled={!canInteract || isSaving}
-            title="Delete itinerary"
+            onClick={handleDeleteTrip}
+            disabled={!canInteract || isSaving || !onDeleteTrip}
+            title="Delete trip"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M3 6h18" />

@@ -171,6 +171,22 @@ export async function touchTrip(tripId: string): Promise<void> {
   await writeFileAtomic(tripMetaPath(tripId), JSON.stringify(trip, null, 2));
 }
 
+export async function deleteTrip(tripId: string): Promise<boolean> {
+  await ensureDataDirs();
+  const root = tripsRoot();
+  const resolved = safePathWithin(root, tripId);
+  if (!resolved) return false;
+  try {
+    const stat = await fs.stat(resolved);
+    if (!stat.isDirectory()) return false;
+  } catch (err: any) {
+    if (err?.code === "ENOENT") return false;
+    throw err;
+  }
+  await fs.rm(resolved, { recursive: true, force: true });
+  return true;
+}
+
 export async function ensureItinerary(tripId: string, tripName?: string): Promise<void> {
   try {
     await fs.access(itineraryPath(tripId));

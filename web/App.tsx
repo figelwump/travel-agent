@@ -701,6 +701,49 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDeleteTrip = async () => {
+    if (!activeTripId || !credentials) return;
+    const tripName = activeTrip?.name ?? 'this trip';
+    const okToDelete = confirm(
+      `Delete "${tripName}"? This will remove its itinerary, chats, uploads, and assets. This cannot be undone.`
+    );
+    if (!okToDelete) return;
+    const res = await apiFetch<{ ok: true }>(`/api/trips/${activeTripId}`, { method: 'DELETE' }, credentials);
+    if (!res.ok) {
+      alert(`Delete failed: ${res.error}`);
+      return;
+    }
+
+    const remaining = trips.filter(t => t.id !== activeTripId);
+    setTrips(remaining);
+    setDraftsByTrip(prev => {
+      if (!(activeTripId in prev)) return prev;
+      const next = { ...prev };
+      delete next[activeTripId];
+      return next;
+    });
+    setDraftHeightsByTrip(prev => {
+      if (!(activeTripId in prev)) return prev;
+      const next = { ...prev };
+      delete next[activeTripId];
+      return next;
+    });
+
+    if (remaining.length > 0) {
+      setActiveTripId(remaining[0].id);
+      return;
+    }
+    setActiveTripId(null);
+    setConversations([]);
+    setActiveConversationId(null);
+    setMessages([]);
+    setItineraryMarkdown('');
+    setIsLoading(false);
+    streamingMessageIdRef.current = null;
+    toolActivityMessageIdRef.current = null;
+    toolUseToMessageRef.current = {};
+  };
+
   const handleCreateConversation = async () => {
     if (!activeTripId) return;
     const res = await apiFetch<Conversation>(`/api/trips/${activeTripId}/conversations`, { method: 'POST' }, credentials);
@@ -927,6 +970,7 @@ const App: React.FC = () => {
                 credentials={credentials}
                 markdown={itineraryMarkdown}
                 onRefresh={refreshItinerary}
+                onDeleteTrip={handleDeleteTrip}
                 onCollapse={() => setShowItinerary(false)}
                 tripCreatedAt={activeTrip?.createdAt ?? null}
                 tripUpdatedAt={activeTrip?.updatedAt ?? null}
