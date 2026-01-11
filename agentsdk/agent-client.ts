@@ -63,7 +63,11 @@ export class AgentClient {
       allowedTools: [
         "Task", "Bash", "Glob", "Grep", "LS", "ExitPlanMode", "Read", "Edit", "MultiEdit", "Write", "NotebookEdit",
         "WebFetch", "TodoWrite", "WebSearch", "BashOutput", "KillBash",
-        "list_entity_types", "list_entities", "read_entity", "create_entity", "update_entity", "toggle_todo", "complete_task",
+        // Entity tools (MCP server "entity-tools" prefixes them with mcp__entity-tools__)
+        "mcp__entity-tools__list_entity_types", "mcp__entity-tools__list_entities",
+        "mcp__entity-tools__read_entity", "mcp__entity-tools__create_entity",
+        "mcp__entity-tools__update_entity", "mcp__entity-tools__toggle_todo",
+        "mcp__entity-tools__complete_task",
         "Skill",
       ],
       appendSystemPrompt: SANDBOX_SYSTEM_PROMPT,

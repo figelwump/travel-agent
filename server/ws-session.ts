@@ -169,14 +169,14 @@ export class ConversationSession {
     const doneMatches = itinerary.match(/- \\[x\\]/gi) || [];
 
     return [
-      `## Current Trip Context`,
+      `## YOUR TRIP ID: ${this.tripId}`,
       ``,
-      `**Trip:** ${trip?.name ?? this.tripId}`,
-      `**Trip ID:** ${this.tripId}`,
-      `**Pending TODOs:** ${todoMatches.length}`,
-      `**Completed TODOs:** ${doneMatches.length}`,
+      `Trip Name: ${trip?.name ?? "Unnamed"}`,
+      `Pending TODOs: ${todoMatches.length} | Completed: ${doneMatches.length}`,
       ``,
-      `Use entity tools to read or update trip data. Do not write files directly.`,
+      `For ALL entity tool calls, use id="${this.tripId}"`,
+      ``,
+      `---`,
       ``,
       `**Known Context:**`,
       context.trim() ? context : "(empty)",
@@ -380,7 +380,9 @@ export class ConversationSession {
       // Check for tool_result message type
       if (messageType === "tool_result") {
         const result = typeof msgAny.content === "string" ? msgAny.content : JSON.stringify(msgAny.content ?? "");
-        console.log(`[ToolResult]:`, result.slice(0, 300) + (result.length > 300 ? "..." : ""));
+        const isError = msgAny.is_error || msgAny.isError;
+        const toolName = msgAny.tool_name ?? msgAny.name ?? "unknown";
+        console.log(`[ToolResult] tool=${toolName} isError=${isError}:`, result.slice(0, 500) + (result.length > 500 ? "..." : ""));
       }
 
       // Log other message types
@@ -466,7 +468,14 @@ export class ConversationSession {
     }
 
     if (message.type === "user") {
-      // (Optional echo)
+      // Log user messages injected by SDK (e.g., tool results, permission prompts)
+      const msgAny = message as any;
+      const content = msgAny.message?.content ?? msgAny.content;
+      const contentStr = typeof content === "string"
+        ? content
+        : JSON.stringify(content, null, 2);
+      console.log(`[SDKUserMessage] Full message structure:`);
+      console.log(JSON.stringify(message, null, 2).slice(0, 2000));
       return;
     }
 
