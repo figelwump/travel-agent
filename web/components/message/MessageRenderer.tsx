@@ -7,9 +7,10 @@ import { AssistantMessage } from './AssistantMessage';
 interface MessageRendererProps {
   message: Message;
   onSendMessage?: (message: StructuredPrompt | string) => void;
+  isLastAndStillWorking?: boolean;
 }
 
-export function MessageRenderer({ message, onSendMessage }: MessageRendererProps) {
+export function MessageRenderer({ message, onSendMessage, isLastAndStillWorking }: MessageRendererProps) {
   switch (message.type) {
     case 'user':
       return <UserMessage message={message} />;
@@ -18,7 +19,7 @@ export function MessageRenderer({ message, onSendMessage }: MessageRendererProps
       return <SystemMessage message={message} />;
 
     case 'assistant':
-      return <AssistantMessage message={message} onSendMessage={onSendMessage} />;
+      return <AssistantMessage message={message} onSendMessage={onSendMessage} isLastAndStillWorking={isLastAndStillWorking} />;
     
     default:
       return (

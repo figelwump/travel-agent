@@ -6,6 +6,7 @@ import { AssistantMessage as AssistantMessageType, ToolUseBlock, TextBlock, Stru
 interface AssistantMessageProps {
   message: AssistantMessageType;
   onSendMessage?: (message: StructuredPrompt | string) => void;
+  isLastAndStillWorking?: boolean;
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -526,7 +527,7 @@ function TextComponent({ text }: { text: TextBlock }) {
   );
 }
 
-export function AssistantMessage({ message }: AssistantMessageProps) {
+export function AssistantMessage({ message, isLastAndStillWorking }: AssistantMessageProps) {
   const [showMetadata, setShowMetadata] = useState(false);
   const [expandedToolId, setExpandedToolId] = useState<string | null>(null);
   const isStreaming = message.metadata?.streaming;
@@ -624,10 +625,17 @@ export function AssistantMessage({ message }: AssistantMessageProps) {
               {message.metadata.model}
             </span>
           )}
-          {isStreaming && (
-            <span className="typing-cursor mono-label" style={{ color: 'hsl(var(--accent-primary))' }}>
-              streaming
-            </span>
+          {(isStreaming || (isLastAndStillWorking && runningToolCount === 0)) && (
+            <div className="flex items-center gap-2">
+              <span className="loading-dots" aria-label="Processing">
+                <span className="loading-dot" />
+                <span className="loading-dot" />
+                <span className="loading-dot" />
+              </span>
+              <span className="mono-label" style={{ color: 'hsl(var(--accent-primary))', fontSize: '0.7rem' }}>
+                working
+              </span>
+            </div>
           )}
         </div>
         <span className="mono-label" style={{ fontSize: '0.65rem' }}>

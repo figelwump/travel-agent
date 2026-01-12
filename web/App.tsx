@@ -559,6 +559,17 @@ const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTripId, activeConversationId, credentials]);
 
+  // Re-focus the chat textarea after the assistant finishes responding
+  const prevIsLoadingRef = useRef(isLoading);
+  useEffect(() => {
+    const wasLoading = prevIsLoadingRef.current;
+    prevIsLoadingRef.current = isLoading;
+    if (wasLoading && !isLoading) {
+      // Slight delay to ensure DOM is updated
+      setTimeout(() => chatTextareaRef.current?.focus(), 50);
+    }
+  }, [isLoading]);
+
   const handleCredentialsSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const password = passwordInput.trim();

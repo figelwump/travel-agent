@@ -134,17 +134,28 @@ export function ChatPanel({
           </div>
         ) : (
           <div className="space-y-4">
-            {messages.map((msg, index) => (
-              <div key={msg.id} className="animate-slide-up" style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
-                <MessageRenderer message={msg} />
-              </div>
-            ))}
+            {messages.map((msg, index) => {
+              const isLast = index === messages.length - 1;
+              const isLastAssistantStillWorking = isLast && msg.type === 'assistant' && isLoading;
+              return (
+                <div key={msg.id} className="animate-slide-up" style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
+                  <MessageRenderer message={msg} isLastAndStillWorking={isLastAssistantStillWorking} />
+                </div>
+              );
+            })}
 
             {isLoading && !hasStreamingAssistant && (
               <div className="message-card message-assistant p-4 animate-slide-up">
                 <div className="flex items-center gap-3">
                   <span className="mono-label" style={{ color: 'hsl(var(--text-tertiary))' }}>AGENT</span>
-                  <span className="typing-cursor" style={{ color: 'hsl(var(--text-secondary))' }}>Processing</span>
+                  <div className="flex items-center gap-2">
+                    <span className="loading-dots" aria-label="Loading">
+                      <span className="loading-dot" />
+                      <span className="loading-dot" />
+                      <span className="loading-dot" />
+                    </span>
+                    <span style={{ color: 'hsl(var(--text-secondary))', fontSize: '0.85rem' }}>Thinking</span>
+                  </div>
                 </div>
               </div>
             )}
