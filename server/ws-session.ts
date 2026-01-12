@@ -202,6 +202,13 @@ export class ConversationSession {
     const context = await storage.readContext(this.tripId);
     const todoMatches = itinerary.match(/- \\[ \\]/g) || [];
     const doneMatches = itinerary.match(/- \\[x\\]/gi) || [];
+    const itineraryTrimmed = itinerary.trim();
+    const maxItineraryChars = 12000;
+    const itinerarySnapshot = itineraryTrimmed
+      ? itineraryTrimmed.length > maxItineraryChars
+        ? `${itineraryTrimmed.slice(0, maxItineraryChars)}\n\n[Itinerary truncated; call read_itinerary for full details.]`
+        : itineraryTrimmed
+      : "(empty)";
 
     return [
       `## YOUR TRIP ID (current trip): ${this.tripId}`,
@@ -212,6 +219,9 @@ export class ConversationSession {
       `Trip tools are already scoped to this trip. Do not ask for the trip ID or pass tripId in tool inputs.`,
       ``,
       `---`,
+      ``,
+      `**Current Itinerary:**`,
+      itinerarySnapshot,
       ``,
       `**Known Context:**`,
       context.trim() ? context : "(empty)",
