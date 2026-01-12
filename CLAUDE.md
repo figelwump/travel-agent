@@ -30,6 +30,10 @@ Always test bug fixes and feature work using the Playwright MCP before consideri
 - Test against that port (e.g., `http://localhost:3002`)
 - Only kill the server you started when done testing
 
+## Commit Guidance
+
+When asked to commit, only include changes made by the agent for the current task. Do not add, revert, or modify unrelated working tree changes.
+
 ## CLI Debug Sessions
 
 When debugging agent behavior (multi-turn chat, tool calls, response flow), use the CLI session runner to capture a clean JSONL transcript and iterate until it looks good. The CLI does **not** emit partial token streams and echoes JSONL to stdout by default.
