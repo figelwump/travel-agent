@@ -30,6 +30,8 @@ Always test bug fixes and feature work using the Playwright MCP before consideri
 - Test against that port (e.g., `http://localhost:3002`)
 - Only kill the server you started when done testing
 
+Always run `bun test` after making changes.
+
 ## Commit Guidance
 
 When asked to commit, only include changes made by the agent for the current task. Do not add, revert, or modify unrelated working tree changes.
