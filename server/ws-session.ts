@@ -242,6 +242,25 @@ export class ConversationSession {
       case "content_block_start":
         if (event?.content_block?.type === "text") {
           if (this.partialTextBuffer === null) this.partialTextBuffer = "";
+        } else if (event?.content_block?.type === "tool_use") {
+          // Immediately broadcast that a tool is being called, even before input is complete
+          const toolBlock = event.content_block;
+          this.broadcast({
+            type: "tool_use_start",
+            tool: {
+              id: toolBlock.id,
+              name: toolBlock.name,
+            },
+            timestamp: nowIso(),
+            tripId: this.tripId,
+            conversationId: this.conversationId,
+          });
+          // Track the tool as running
+          this.recordToolUse({
+            id: toolBlock.id,
+            name: toolBlock.name,
+            input: {},
+          });
         }
         break;
       case "content_block_delta":

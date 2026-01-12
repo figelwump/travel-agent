@@ -219,6 +219,63 @@ const App: React.FC = () => {
           });
           break;
         }
+        case 'tool_use_start': {
+          // Immediately show tool activity when tool generation begins (before input is complete)
+          if (message.tripId !== activeTripId || message.conversationId !== activeConversationId) break;
+          const tool = message.tool;
+          if (!tool || !tool.id) break;
+          const timestamp = message.timestamp || new Date().toISOString();
+          const ensureMessageId = () => {
+            if (toolActivityMessageIdRef.current) return toolActivityMessageIdRef.current;
+            if (streamingMessageIdRef.current) {
+              toolActivityMessageIdRef.current = streamingMessageIdRef.current;
+              return toolActivityMessageIdRef.current;
+            }
+            const newId = `${Date.now()}-assistant-tools`;
+            toolActivityMessageIdRef.current = newId;
+            if (!streamingMessageIdRef.current) {
+              streamingMessageIdRef.current = newId;
+            }
+            return newId;
+          };
+          const messageId = ensureMessageId();
+          toolUseToMessageRef.current[tool.id] = messageId;
+          const nextTool: ToolActivity = {
+            id: tool.id,
+            name: tool.name ?? 'Tool',
+            input: {}, // Input not yet available during streaming
+            status: 'running',
+            startedAt: timestamp,
+          };
+          setMessages(prev => {
+            const index = prev.findIndex(msg => msg.id === messageId);
+            if (index < 0) {
+              const toolMessage: Message = {
+                id: messageId,
+                type: 'assistant',
+                content: [],
+                timestamp,
+                metadata: { streaming: true, toolActivity: [nextTool] },
+              };
+              return [...prev, toolMessage];
+            }
+            const next = [...prev];
+            const msg = next[index];
+            if (msg.type !== 'assistant') return prev;
+            const existing = Array.isArray(msg.metadata?.toolActivity)
+              ? msg.metadata?.toolActivity as ToolActivity[]
+              : [];
+            const existingIndex = existing.findIndex(item => item.id === tool.id);
+            if (existingIndex >= 0) return prev; // Already tracked
+            const updated = [...existing, nextTool];
+            next[index] = {
+              ...msg,
+              metadata: { ...(msg.metadata ?? {}), streaming: true, toolActivity: updated },
+            };
+            return next;
+          });
+          break;
+        }
         case 'tool_result': {
           if (message.tripId !== activeTripId || message.conversationId !== activeConversationId) break;
           const toolUseId = message.tool_use_id;
