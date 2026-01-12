@@ -428,7 +428,8 @@ const App: React.FC = () => {
             return [...prev, assistantMsg];
           });
 
-          setIsLoading(false);
+          // Don't set isLoading=false here - wait for 'result' event
+          // Multi-turn conversations may have more assistant turns coming
           toolActivityMessageIdRef.current = null;
           break;
         }
