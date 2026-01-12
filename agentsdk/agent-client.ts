@@ -40,6 +40,8 @@ export interface AgentQueryOptions {
   model?: string;
   includePartialMessages?: boolean;
   allowedTools?: string[];
+  disallowedTools?: string[];
+  tools?: string[] | { type: "preset"; preset: "claude_code" };
   mcpServers?: Record<string, any>;
   appendSystemPrompt?: string;
   allowedTripId?: string | null;
@@ -62,14 +64,13 @@ export class AgentClient {
       model: "sonnet",
       includePartialMessages: true,
       allowedTools: [
-        "Task", "Bash", "Glob", "Grep", "LS", "ExitPlanMode", "Read", "Edit", "MultiEdit", "Write", "NotebookEdit",
-        "WebFetch", "TodoWrite", "WebSearch", "BashOutput", "KillBash",
+        "WebFetch", "WebSearch", "Skill",
         // Trip tools (MCP server "entity-tools" prefixes them with mcp__entity-tools__)
         "mcp__entity-tools__read_itinerary", "mcp__entity-tools__update_itinerary",
         "mcp__entity-tools__read_context", "mcp__entity-tools__update_context",
         "mcp__entity-tools__toggle_todo", "mcp__entity-tools__complete_task",
-        "Skill",
       ],
+      tools: ["WebFetch", "WebSearch", "Skill"],
       appendSystemPrompt: SANDBOX_SYSTEM_PROMPT,
       settingSources: ["project"], // Avoid user-level plugins/tools (e.g., browser MCP)
       stderr: (msg: string) => console.error("[claude-sdk]", msg.trim()),

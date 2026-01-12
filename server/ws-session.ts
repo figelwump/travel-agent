@@ -5,11 +5,21 @@ import * as storage from "./storage";
 import * as fs from "fs/promises";
 import { createTripTools, completionTools } from "./tools";
 
-function createTripMcpServer(tripId: string) {
+function createTripMcpServer(
+  tripId: string,
+  options?: { includeReadItinerary?: boolean; includeReadContext?: boolean },
+) {
   // Short name "t" to keep tool name prefixes short
+  const includeReadItinerary = options?.includeReadItinerary ?? true;
+  const includeReadContext = options?.includeReadContext ?? true;
+  const tripTools = createTripTools(tripId).filter((tool) => {
+    if (!includeReadItinerary && tool.name === "read_itinerary") return false;
+    if (!includeReadContext && tool.name === "read_context") return false;
+    return true;
+  });
   return createSdkMcpServer({
     name: "t",
-    tools: [...createTripTools(tripId), ...completionTools],
+    tools: [...tripTools, ...completionTools],
   });
 }
 
@@ -25,20 +35,46 @@ const ALLOWED_TRIP_TOOLS = [
   "Skill",
 ];
 
-function selectAllowedTripTools(message: string): string[] {
+function shouldAllowReadItinerary(message: string, itineraryTruncated: boolean): boolean {
+  if (itineraryTruncated) return true;
+  const normalized = message.toLowerCase();
+  return /\b(read|show|view|review)\b.*\bitinerary\b/.test(normalized)
+    || /\b(itinerary)\b.*\b(read|show|view|review)\b/.test(normalized)
+    || /\bwhat(?:'s| is) in (?:my|the) itinerary\b/.test(normalized)
+    || /\bcurrent itinerary\b/.test(normalized);
+}
+
+function shouldAllowReadContext(message: string, contextTruncated: boolean): boolean {
+  if (contextTruncated) return true;
+  const normalized = message.toLowerCase();
+  return /\b(read|show|view|review)\b.*\bcontext\b/.test(normalized)
+    || /\b(context)\b.*\b(read|show|view|review)\b/.test(normalized)
+    || /\bwhat(?:'s| is) in (?:my|the) context\b/.test(normalized)
+    || /\bcurrent context\b/.test(normalized);
+}
+
+function selectAllowedTripTools(message: string, itineraryTruncated: boolean, contextTruncated: boolean): string[] {
   const normalized = message.toLowerCase();
   const mentionsItinerary = /\b(itinerary|schedule|day\s+\d+)\b/.test(normalized);
   const mentionsContext = /\b(context|preferences?|bookings?|confirmations?)\b/.test(normalized);
+  const allowReadItinerary = shouldAllowReadItinerary(message, itineraryTruncated);
+  const allowReadContext = shouldAllowReadContext(message, contextTruncated);
 
-  if (mentionsItinerary && !mentionsContext) {
-    return ALLOWED_TRIP_TOOLS.filter((tool) => tool !== "mcp__entity-tools__update_context");
-  }
-
-  return ALLOWED_TRIP_TOOLS;
+  return ALLOWED_TRIP_TOOLS.filter((tool) => {
+    if (mentionsItinerary && !mentionsContext && tool === "mcp__entity-tools__update_context") return false;
+    if (!allowReadItinerary && tool === "mcp__entity-tools__read_itinerary") return false;
+    if (!allowReadContext && tool === "mcp__entity-tools__read_context") return false;
+    return true;
+  });
 }
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function logTs(...args: unknown[]): void {
+  const ts = new Date().toISOString().slice(11, 23); // HH:mm:ss.sss
+  console.log(`[${ts}]`, ...args);
 }
 
 function createTextBroadcast(type: string, payload: Record<string, unknown>) {
@@ -118,6 +154,7 @@ export class ConversationSession {
   private partialTextBuffer: string | null = null;
   private itineraryMtimeBeforeQuery: number | null = null;
   private lastUserMessage: string | null = null;
+  private activeAllowedTools: Set<string> | null = null;
   private pendingToolActivity = new Map<string, {
     id: string;
     name: string;
@@ -167,6 +204,12 @@ export class ConversationSession {
     }
   }
 
+  private isToolAllowedForSession(toolName?: string | null): boolean {
+    if (!toolName) return true;
+    if (!this.activeAllowedTools) return true;
+    return this.activeAllowedTools.has(toolName);
+  }
+
   private broadcastError(error: string) {
     this.broadcast({ type: "error", error, tripId: this.tripId, conversationId: this.conversationId });
   }
@@ -196,27 +239,63 @@ export class ConversationSession {
     if (meta?.sdkSessionId) this.sdkSessionId = meta.sdkSessionId;
   }
 
-  private async buildTripContextPrompt(): Promise<string> {
+  private async buildTripContextPrompt(): Promise<{
+    prompt: string;
+    itineraryTruncated: boolean;
+    contextTruncated: boolean;
+    tripName: string;
+    itinerarySnapshot: string;
+    contextSnapshot: string;
+  }> {
     const trip = await storage.getTrip(this.tripId);
+    const tripName = trip?.name ?? "Unnamed";
     const itinerary = await storage.readItinerary(this.tripId);
     const context = await storage.readContext(this.tripId);
     const todoMatches = itinerary.match(/- \\[ \\]/g) || [];
     const doneMatches = itinerary.match(/- \\[x\\]/gi) || [];
     const itineraryTrimmed = itinerary.trim();
+    const contextTrimmed = context.trim();
     const maxItineraryChars = 12000;
+    const maxContextChars = 8000;
+    const itineraryTruncated = itineraryTrimmed.length > maxItineraryChars;
+    const contextTruncated = contextTrimmed.length > maxContextChars;
+    const itineraryInstruction = itineraryTruncated
+      ? "The itinerary below is truncated. Call read_itinerary only if you need the full version."
+      : "The full itinerary is provided below and has already been read. Do NOT call read_itinerary or mention reading it. Do not use filesystem tools to fetch it.";
+    const contextInstruction = contextTruncated
+      ? "The context below is truncated. Call read_context only if you need the full version."
+      : "The full context is provided below. Do NOT call read_context or mention reading it.";
     const itinerarySnapshot = itineraryTrimmed
       ? itineraryTrimmed.length > maxItineraryChars
         ? `${itineraryTrimmed.slice(0, maxItineraryChars)}\n\n[Itinerary truncated; call read_itinerary for full details.]`
         : itineraryTrimmed
       : "(empty)";
+    const contextSnapshot = contextTrimmed
+      ? contextTrimmed.length > maxContextChars
+        ? `${contextTrimmed.slice(0, maxContextChars)}\n\n[Context truncated; call read_context for full details.]`
+        : contextTrimmed
+      : "(empty)";
 
-    return [
+    const prompt = [
+      `## CRITICAL: Active trip is already selected`,
+      `Active trip: ${tripName} (${this.tripId}).`,
+      `Do NOT ask which trip the user wants or offer to create a new trip.`,
+      `Use the Current Itinerary and Known Context below for this trip.`,
+      ``,
       `## YOUR TRIP ID (current trip): ${this.tripId}`,
       ``,
-      `Trip Name: ${trip?.name ?? "Unnamed"}`,
+      `Trip Name: ${tripName}`,
       `Pending TODOs: ${todoMatches.length} | Completed: ${doneMatches.length}`,
       ``,
       `Trip tools are already scoped to this trip. Do not ask for the trip ID or pass tripId in tool inputs.`,
+      `The current itinerary is included below.`,
+      itineraryInstruction,
+      `The current context is included below.`,
+      contextInstruction,
+      `Tool availability for this request:`,
+      `- read_itinerary: ${itineraryTruncated ? "ENABLED (itinerary truncated)" : "DISABLED (full itinerary already provided)"}`,
+      `- read_context: ${contextTruncated ? "ENABLED (context truncated)" : "DISABLED (full context already provided)"}`,
+      `Do not call any tool marked DISABLED.`,
       ``,
       `---`,
       ``,
@@ -224,8 +303,17 @@ export class ConversationSession {
       itinerarySnapshot,
       ``,
       `**Known Context:**`,
-      context.trim() ? context : "(empty)",
+      contextSnapshot,
     ].join("\n");
+
+    return {
+      prompt,
+      itineraryTruncated,
+      contextTruncated,
+      tripName,
+      itinerarySnapshot,
+      contextSnapshot,
+    };
   }
 
   private isDefaultTitle(title?: string | null): boolean {
@@ -255,6 +343,7 @@ export class ConversationSession {
         } else if (event?.content_block?.type === "tool_use") {
           // Immediately broadcast that a tool is being called, even before input is complete
           const toolBlock = event.content_block;
+          if (!this.isToolAllowedForSession(toolBlock?.name)) return;
           this.broadcast({
             type: "tool_use_start",
             tool: {
@@ -300,6 +389,7 @@ export class ConversationSession {
 
   private broadcastToolUse(tool: any) {
     if (!tool?.id || !tool?.name) return;
+    if (!this.isToolAllowedForSession(tool.name)) return;
     this.broadcast({
       type: "tool_use",
       tool,
@@ -312,10 +402,12 @@ export class ConversationSession {
   private broadcastToolResult(result: any) {
     const toolUseId = result?.tool_use_id;
     if (!toolUseId) return;
+    const toolName = result?.name ?? result?.tool_name ?? null;
+    if (toolName && !this.isToolAllowedForSession(toolName)) return;
     this.broadcast({
       type: "tool_result",
       tool_use_id: toolUseId,
-      tool_name: result?.name ?? result?.tool_name ?? null,
+      tool_name: toolName,
       content: result?.content ?? "",
       is_error: Boolean(result?.is_error),
       timestamp: nowIso(),
@@ -326,6 +418,7 @@ export class ConversationSession {
 
   private recordToolUse(tool: any) {
     if (!tool?.id || !tool?.name) return;
+    if (!this.isToolAllowedForSession(tool.name)) return;
     if (this.pendingToolActivity.has(tool.id)) return;
     this.pendingToolActivity.set(tool.id, {
       id: tool.id,
@@ -339,6 +432,8 @@ export class ConversationSession {
   private recordToolResult(result: any) {
     const toolUseId = result?.tool_use_id;
     if (!toolUseId) return;
+    const toolName = result?.name ?? result?.tool_name ?? null;
+    if (toolName && !this.isToolAllowedForSession(toolName)) return;
     const existing = this.pendingToolActivity.get(toolUseId);
     if (existing) {
       existing.status = "complete";
@@ -369,9 +464,9 @@ export class ConversationSession {
     await this.ensureConversationLoaded();
     this.lastUserMessage = content;
 
-    console.log(`\n${"=".repeat(60)}`);
-    console.log(`[UserMessage] tripId=${this.tripId} convId=${this.conversationId}`);
-    console.log(`[UserMessage] content: ${content.slice(0, 200)}${content.length > 200 ? "..." : ""}`);
+    logTs(`\n${"=".repeat(60)}`);
+    logTs(`[UserMessage] tripId=${this.tripId} convId=${this.conversationId}`);
+    logTs(`[UserMessage] content: ${content.slice(0, 200)}${content.length > 200 ? "..." : ""}`);
 
     const userMsg: storage.StoredMessage = {
       id: crypto.randomUUID(),
@@ -388,17 +483,39 @@ export class ConversationSession {
     this.queryPromise = (async () => {
       try {
         const ctxPrompt = await this.buildTripContextPrompt();
-        console.log(`[TripContext]\n${ctxPrompt}`);
+        logTs(`[TripContext]\n${ctxPrompt.prompt}`);
         const options = this.sdkSessionId ? { resume: this.sdkSessionId } : {};
-        console.log(`[AgentQuery] Starting query, resume=${!!this.sdkSessionId}`);
+        logTs(`[AgentQuery] Starting query, resume=${!!this.sdkSessionId}`);
 
-        const allowedTools = selectAllowedTripTools(content);
-        for await (const message of this.agentClient.queryStream(content, {
+        const allowReadItinerary = shouldAllowReadItinerary(content, ctxPrompt.itineraryTruncated);
+        const allowReadContext = shouldAllowReadContext(content, ctxPrompt.contextTruncated);
+        const allowedTools = selectAllowedTripTools(content, ctxPrompt.itineraryTruncated, ctxPrompt.contextTruncated);
+        const modelPrompt = [
+          `Trip already selected: ${ctxPrompt.tripName} (${this.tripId}).`,
+          `Do NOT ask which trip or offer to create a new trip.`,
+          `Use the itinerary and context below for this request.`,
+          ``,
+          `Current Itinerary:`,
+          ctxPrompt.itinerarySnapshot,
+          ``,
+          `Known Context:`,
+          ctxPrompt.contextSnapshot,
+          ``,
+          `User request: ${content}`,
+        ].join("\n");
+        const mcpServer = allowReadItinerary && allowReadContext
+          ? this.mcpServer
+          : createTripMcpServer(this.tripId, {
+            includeReadItinerary: allowReadItinerary,
+            includeReadContext: allowReadContext,
+          });
+        this.activeAllowedTools = new Set(allowedTools);
+        for await (const message of this.agentClient.queryStream(modelPrompt, {
           ...options,
-          appendSystemPrompt: ctxPrompt,
+          appendSystemPrompt: ctxPrompt.prompt,
           allowedTripId: this.tripId,
           allowedTools,
-          mcpServers: { "entity-tools": this.mcpServer },
+          mcpServers: { "entity-tools": mcpServer },
         })) {
           await this.handleSdkMessage(message);
         }
@@ -406,6 +523,7 @@ export class ConversationSession {
         console.error("Agent query failed", err);
         this.broadcastError(err?.message ? String(err.message) : "Query failed");
       } finally {
+        this.activeAllowedTools = null;
         this.queryPromise = null;
       }
     })();
@@ -463,14 +581,14 @@ export class ConversationSession {
 
     if (messageType === "assistant") {
       const toolBlocks = (message as any)?.message?.content;
-      if (Array.isArray(toolBlocks)) {
-        for (const block of toolBlocks) {
-          if (block?.type === "tool_use") {
-            this.broadcastToolUse(block);
-            this.recordToolUse(block);
+        if (Array.isArray(toolBlocks)) {
+          for (const block of toolBlocks) {
+            if (block?.type === "tool_use") {
+              this.broadcastToolUse(block);
+              this.recordToolUse(block);
+            }
           }
         }
-      }
       const text = joinAssistantText(message);
       const cleanedText = text ? sanitizeAssistantText(text) : "";
       if (cleanedText) {
