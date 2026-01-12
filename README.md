@@ -23,6 +23,43 @@ By default, trips are persisted under `~/.travelagent` (override with `TRAVEL_AG
 bun run typecheck
 ```
 
+## CLI Debug Sessions
+
+Use the CLI to run multi-turn chat sessions quickly and capture JSONL transcripts (plus optional Markdown).
+
+```bash
+bun run dev
+bun run cli session run --input docs/session.example.json --trip "Debug Trip" --conversation "Debug"
+```
+
+Outputs a JSONL transcript to `debug/transcripts/session-<timestamp>.jsonl` by default. JSONL is also echoed to stdout by default (disable with `--no-stream`). Partial tokens are not emitted. Optional flags:
+
+```bash
+bun run cli session run --input docs/session.example.json --trip "Debug Trip" --no-stream --markdown debug/transcripts/session.md
+bun run cli session repl --trip "Debug Trip"
+bun run cli session replay debug/transcripts/session-123.jsonl
+```
+
+Single message without a session file:
+
+```bash
+bun run cli session run --message "Plan a 2-day Tokyo itinerary" --trip "Debug Trip"
+```
+
+List trips (for grabbing IDs):
+
+```bash
+bun run cli trips list
+```
+
+Auth + URL can be provided via environment:
+
+```bash
+TRAVEL_AGENT_URL=http://localhost:3000 TRAVEL_AGENT_PASSWORD=... bun run cli session run --input docs/session.example.json
+```
+
+To suppress non-JSON output (useful for automation), add `--quiet`.
+
 ## Authentication
 
 The server requires basic password authentication for both WebSocket connections and API endpoints.

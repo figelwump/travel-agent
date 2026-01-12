@@ -8,7 +8,8 @@
     "dev": "lsof -ti:${PORT:-3001} | xargs kill -9 2>/dev/null; bun --watch server/server.ts",
     "start": "bun run server/server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "cli": "bun run scripts/cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "latest",
