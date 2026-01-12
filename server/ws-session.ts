@@ -25,6 +25,18 @@ const ALLOWED_TRIP_TOOLS = [
   "Skill",
 ];
 
+function selectAllowedTripTools(message: string): string[] {
+  const normalized = message.toLowerCase();
+  const mentionsItinerary = /\b(itinerary|schedule|day\s+\d+)\b/.test(normalized);
+  const mentionsContext = /\b(context|preferences?|bookings?|confirmations?)\b/.test(normalized);
+
+  if (mentionsItinerary && !mentionsContext) {
+    return ALLOWED_TRIP_TOOLS.filter((tool) => tool !== "mcp__entity-tools__update_context");
+  }
+
+  return ALLOWED_TRIP_TOOLS;
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -351,11 +363,12 @@ export class ConversationSession {
         const options = this.sdkSessionId ? { resume: this.sdkSessionId } : {};
         console.log(`[AgentQuery] Starting query, resume=${!!this.sdkSessionId}`);
 
+        const allowedTools = selectAllowedTripTools(content);
         for await (const message of this.agentClient.queryStream(content, {
           ...options,
           appendSystemPrompt: ctxPrompt,
           allowedTripId: this.tripId,
-          allowedTools: ALLOWED_TRIP_TOOLS,
+          allowedTools,
           mcpServers: { "entity-tools": this.mcpServer },
         })) {
           await this.handleSdkMessage(message);

@@ -45,6 +45,12 @@ The user is already viewing a specific trip. Do not ask for the trip ID.
 Use \`update_itinerary\` or \`update_context\` to modify trip data. Do NOT use Write/Edit/Bash tools for trip data - always use the trip tools.
 If \`update_itinerary\` fails with a missing content error, re-read the itinerary and retry with full markdown content. Do not use filesystem tools.
 
+## Itinerary vs Context Routing
+
+- If the user mentions the **itinerary**, schedule, or asks to add notes/activities/todos for trip days, treat it as an itinerary change.
+- Do NOT put itinerary notes into context. Notes requested for the itinerary belong in the itinerary (use \`update_itinerary\`).
+- Use context only for preferences, confirmations, and background details unless the user explicitly asks to update context.
+
 ## Judgment Guidelines
 
 **Working with itineraries:**

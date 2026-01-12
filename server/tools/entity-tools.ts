@@ -7,19 +7,46 @@ export function createTripTools(tripId: string) {
   if (!normalizedTripId) {
     throw new Error("Trip ID is required to create trip tools.");
   }
-  const noParams = z.object({}).passthrough();
-  const itineraryUpdateSchema = z.object({
-    content: z.string().describe("Full itinerary markdown content"),
-  }).passthrough();
-  const contextUpdateSchema = z.object({
-    content: z.string().describe("Full context markdown content"),
-  }).passthrough();
-  const toggleTodoSchema = z.object({
+  const noParams = {};
+  const itineraryUpdateSchema = {
+    content: z.any().describe("Full itinerary markdown content"),
+  };
+  const contextUpdateSchema = {
+    content: z.any().describe("Full context markdown content"),
+  };
+  const toggleTodoSchema = {
     lineNumber: z.number().describe("1-based line number"),
-  }).passthrough();
-  const resolveContent = (input: { content?: unknown; new_content?: unknown }) => {
-    if (typeof input.content === "string") return { ok: true as const, content: input.content };
-    if (typeof input.new_content === "string") return { ok: true as const, content: input.new_content };
+  };
+  const resolveContent = (input: unknown) => {
+    if (typeof input === "string") return { ok: true as const, content: input };
+    if (!input || typeof input !== "object") {
+      return {
+        ok: false as const,
+        error: "Missing content. Use { content: \"<markdown>\" }.",
+      };
+    }
+
+    const record = input as Record<string, unknown>;
+    const candidates = [record.content, record.new_content, record.text, record.value, record.input, record.args];
+    for (const candidate of candidates) {
+      if (typeof candidate === "string") return { ok: true as const, content: candidate };
+      if (Array.isArray(candidate)) {
+        const textParts = candidate
+          .map((item) => (item && typeof item === "object" ? (item as Record<string, unknown>).text : null))
+          .filter((item): item is string => typeof item === "string");
+        if (textParts.length > 0) return { ok: true as const, content: textParts.join("") };
+      }
+      if (candidate && typeof candidate === "object") {
+        const nested = candidate as Record<string, unknown>;
+        const nestedCandidates = [nested.content, nested.text, nested.value];
+        for (const nestedCandidate of nestedCandidates) {
+          if (typeof nestedCandidate === "string") {
+            return { ok: true as const, content: nestedCandidate };
+          }
+        }
+      }
+    }
+
     return {
       ok: false as const,
       error: "Missing content. Use { content: \"<markdown>\" }.",
@@ -42,8 +69,14 @@ export function createTripTools(tripId: string) {
     "update_itinerary",
     "Replace the itinerary markdown for the current trip (requires full markdown in content)",
     itineraryUpdateSchema,
-    async (input) => {
-      const resolved = resolveContent(input ?? {});
+    async (input, extra) => {
+      let resolved = resolveContent(input ?? {});
+      if (!resolved.ok && extra && typeof extra === "object") {
+        const candidate = (extra as Record<string, any>)?.request?.params?.arguments;
+        if (candidate) {
+          resolved = resolveContent(candidate);
+        }
+      }
       if (!resolved.ok) {
         return {
           content: [{ type: "text", text: resolved.error }],
@@ -71,8 +104,14 @@ export function createTripTools(tripId: string) {
     "update_context",
     "Replace the trip context markdown for the current trip (requires full markdown in content)",
     contextUpdateSchema,
-    async (input) => {
-      const resolved = resolveContent(input ?? {});
+    async (input, extra) => {
+      let resolved = resolveContent(input ?? {});
+      if (!resolved.ok && extra && typeof extra === "object") {
+        const candidate = (extra as Record<string, any>)?.request?.params?.arguments;
+        if (candidate) {
+          resolved = resolveContent(candidate);
+        }
+      }
       if (!resolved.ok) {
         return {
           content: [{ type: "text", text: resolved.error }],
