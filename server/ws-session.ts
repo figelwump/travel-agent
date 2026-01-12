@@ -3,14 +3,27 @@ import { AgentClient } from "../agentsdk/agent-client";
 import { createSdkMcpServer, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import * as storage from "./storage";
 import * as fs from "fs/promises";
-import { entityTools, completionTools } from "./tools";
+import { createTripTools, completionTools } from "./tools";
 
-// Create MCP server with custom entity tools
-// Short name "t" to minimize tool name prefix (mcp__t__read_entity)
-const entityMcpServer = createSdkMcpServer({
-  name: "t",
-  tools: [...entityTools, ...completionTools],
-});
+function createTripMcpServer(tripId: string) {
+  // Short name "t" to keep tool name prefixes short
+  return createSdkMcpServer({
+    name: "t",
+    tools: [...createTripTools(tripId), ...completionTools],
+  });
+}
+
+const ALLOWED_TRIP_TOOLS = [
+  "mcp__entity-tools__read_itinerary",
+  "mcp__entity-tools__update_itinerary",
+  "mcp__entity-tools__read_context",
+  "mcp__entity-tools__update_context",
+  "mcp__entity-tools__toggle_todo",
+  "mcp__entity-tools__complete_task",
+  "WebSearch",
+  "WebFetch",
+  "Skill",
+];
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -30,6 +43,14 @@ function joinAssistantText(message: any): string {
       .join("");
   }
   return "";
+}
+
+function normalizeToolName(name: string): string {
+  if (name.startsWith("mcp__")) {
+    const parts = name.split("__");
+    return parts.length >= 3 ? parts.slice(2).join("__") : name;
+  }
+  return name;
 }
 
 function sanitizeAssistantText(text: string): string {
@@ -93,10 +114,12 @@ export class ConversationSession {
     startedAt: string;
     completedAt?: string;
   }>();
+  private mcpServer: ReturnType<typeof createSdkMcpServer>;
 
   constructor({ tripId, conversationId }: ConversationSessionParams) {
     this.tripId = tripId;
     this.conversationId = conversationId;
+    this.mcpServer = createTripMcpServer(tripId);
   }
 
   subscribe(client: WSClient) {
@@ -169,12 +192,12 @@ export class ConversationSession {
     const doneMatches = itinerary.match(/- \\[x\\]/gi) || [];
 
     return [
-      `## YOUR TRIP ID: ${this.tripId}`,
+      `## YOUR TRIP ID (current trip): ${this.tripId}`,
       ``,
       `Trip Name: ${trip?.name ?? "Unnamed"}`,
       `Pending TODOs: ${todoMatches.length} | Completed: ${doneMatches.length}`,
       ``,
-      `For ALL entity tool calls, use id="${this.tripId}"`,
+      `Trip tools are already scoped to this trip. Do not ask for the trip ID or pass tripId in tool inputs.`,
       ``,
       `---`,
       ``,
@@ -294,20 +317,9 @@ export class ConversationSession {
   private handleToolResultSideEffects(toolUseId: string) {
     const activity = this.pendingToolActivity.get(toolUseId);
     if (!activity) return;
-    if (activity.name === "update_entity") {
-      const entityType = String(activity.input?.entityType ?? "");
-      if (entityType === "context") {
-        this.broadcast({ type: "context_updated", tripId: this.tripId });
-      }
-      if (entityType === "trip") {
-        this.broadcast({ type: "trips_updated", tripId: this.tripId });
-      }
-    }
-    if (activity.name === "create_entity") {
-      const entityType = String(activity.input?.entityType ?? "");
-      if (entityType === "trip") {
-        this.broadcast({ type: "trips_updated", tripId: this.tripId });
-      }
+    const toolName = normalizeToolName(activity.name);
+    if (toolName === "update_context") {
+      this.broadcast({ type: "context_updated", tripId: this.tripId });
     }
   }
 
@@ -343,7 +355,8 @@ export class ConversationSession {
           ...options,
           appendSystemPrompt: ctxPrompt,
           allowedTripId: this.tripId,
-          mcpServers: { "entity-tools": entityMcpServer },
+          allowedTools: ALLOWED_TRIP_TOOLS,
+          mcpServers: { "entity-tools": this.mcpServer },
         })) {
           await this.handleSdkMessage(message);
         }

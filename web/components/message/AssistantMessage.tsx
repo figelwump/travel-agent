@@ -18,7 +18,7 @@ function formatTimestamp(timestamp: string): string {
 }
 
 // Strip MCP server prefix from tool names for cleaner display
-// e.g., "mcp__t__read_entity" -> "read_entity"
+// e.g., "mcp__t__read_itinerary" -> "read_itinerary"
 function cleanToolName(name: string): string {
   if (name.startsWith('mcp__')) {
     const parts = name.split('__');
@@ -571,14 +571,13 @@ export function AssistantMessage({ message }: AssistantMessageProps) {
         return input.subagent_type ? `Agent: ${input.subagent_type}` : 'Sub-agent task';
       case 'TodoWrite':
         return input.todos ? `${input.todos.length} todos` : 'Todo update';
-      // Entity tools
-      case 'read_entity':
-      case 'update_entity':
-      case 'create_entity':
-      case 'list_entities':
-        return input.entityType ? `${input.entityType}${input.id ? `: ${truncate(String(input.id), 30)}` : ''}` : 'Entity operation';
-      case 'list_entity_types':
-        return 'Discover entities';
+      // Trip tools
+      case 'read_itinerary':
+      case 'update_itinerary':
+        return 'Itinerary';
+      case 'read_context':
+      case 'update_context':
+        return 'Context';
       case 'toggle_todo':
         return input.lineNumber ? `Line ${input.lineNumber}` : 'Toggle checkbox';
       case 'complete_task':

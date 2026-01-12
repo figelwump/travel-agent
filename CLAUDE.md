@@ -47,7 +47,7 @@ This is a personal travel planning agent with a Bun server backend and React fro
 - **agent-client.ts** - Wraps `@anthropic-ai/claude-agent-sdk` query function. Configures allowed tools, sandboxes file writes to `~/.travelagent/`, and appends the travel agent system prompt.
 - **system-prompt.ts** - Base system prompt for the sandboxed travel agent.
 
-The agent uses entity tools (`read_entity`, `update_entity`, `create_entity`, `list_entities`) to work with trip data. These are custom tools defined in `server/tools/entity-tools.ts`.
+The agent uses trip tools (`read_itinerary`, `update_itinerary`, `read_context`, `update_context`, `toggle_todo`) to work with trip data. These are custom tools defined in `server/tools/entity-tools.ts`.
 
 ### Web Client (`web/`)
 

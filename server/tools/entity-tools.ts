@@ -2,175 +2,95 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import * as storage from "../storage";
 
-type EntityHandler = {
-  list?: (parentId?: string) => Promise<unknown>;
-  read?: (id: string) => Promise<unknown>;
-  create?: (data: any) => Promise<unknown>;
-  update?: (id: string, data: any) => Promise<unknown>;
-};
+export function createTripTools(tripId: string) {
+  const normalizedTripId = tripId.trim();
+  if (!normalizedTripId) {
+    throw new Error("Trip ID is required to create trip tools.");
+  }
+  const noParams = z.object({}).passthrough();
+  const itineraryUpdateSchema = z.object({
+    content: z.string().describe("Full itinerary markdown content"),
+  }).passthrough();
+  const contextUpdateSchema = z.object({
+    content: z.string().describe("Full context markdown content"),
+  }).passthrough();
+  const toggleTodoSchema = z.object({
+    lineNumber: z.number().describe("1-based line number"),
+  }).passthrough();
+  const resolveContent = (input: { content?: unknown; new_content?: unknown }) => {
+    if (typeof input.content === "string") return { ok: true as const, content: input.content };
+    if (typeof input.new_content === "string") return { ok: true as const, content: input.new_content };
+    return {
+      ok: false as const,
+      error: "Missing content. Use { content: \"<markdown>\" }.",
+    };
+  };
 
-const entityHandlers: Record<string, EntityHandler> = {
-  trip: {
-    list: () => storage.listTrips(),
-    read: (id: string) => storage.getTrip(id),
-    create: (data: any) => storage.createTrip(String(data?.name ?? "")),
-    update: (id: string, data: any) => storage.updateTrip(id, data),
-  },
-  itinerary: {
-    read: (tripId: string) => storage.readItinerary(tripId),
-    update: (tripId: string, content: string) => storage.writeItinerary(tripId, content),
-  },
-  context: {
-    read: (tripId: string) => storage.readContext(tripId),
-    update: (tripId: string, content: string) => storage.writeContext(tripId, content),
-  },
-  uploads: {
-    list: (tripId?: string) => storage.listUploads(String(tripId ?? "")),
-  },
-  conversations: {
-    list: (tripId?: string) => storage.listConversations(String(tripId ?? "")),
-  },
-};
-
-const entityTypesRequiringParent = new Set(["uploads", "conversations"]);
-
-export const entityTools = [
+  return [
   tool(
-    "list_entity_types",
-    "List available entity types and their operations",
-    {},
+    "read_itinerary",
+    "Read the itinerary markdown for the current trip",
+    noParams,
     async () => {
-      const types = Object.entries(entityHandlers).map(([type, ops]) => ({
-        type,
-        operations: Object.keys(ops),
-      }));
+      const result = await storage.readItinerary(normalizedTripId);
       return {
-        content: [{ type: "text", text: JSON.stringify(types, null, 2) }],
+        content: [{ type: "text", text: result }],
       };
     },
   ),
   tool(
-    "read_entity",
-    "Read any entity by type",
-    {
-      entityType: z.string().describe("Entity type (trip, itinerary, context, etc.)"),
-      id: z.string().optional().describe("Entity ID (tripId for most types)"),
-    },
-    async ({ entityType, id }) => {
-      const handler = entityHandlers[entityType];
-      if (!handler?.read) {
+    "update_itinerary",
+    "Replace the itinerary markdown for the current trip (requires full markdown in content)",
+    itineraryUpdateSchema,
+    async (input) => {
+      const resolved = resolveContent(input ?? {});
+      if (!resolved.ok) {
         return {
-          content: [{ type: "text", text: `Unknown entity type or read not supported: ${entityType}` }],
+          content: [{ type: "text", text: resolved.error }],
           isError: true,
         };
       }
-      if (!id) {
-        return {
-          content: [{ type: "text", text: "id is required for read_entity" }],
-          isError: true,
-        };
-      }
-      const result = await handler.read(id);
+      await storage.writeItinerary(normalizedTripId, resolved.content);
       return {
-        content: [
-          {
-            type: "text",
-            text: typeof result === "string" ? result : JSON.stringify(result, null, 2),
-          },
-        ],
+        content: [{ type: "text", text: `Updated itinerary for ${normalizedTripId}` }],
       };
     },
   ),
   tool(
-    "create_entity",
-    "Create any entity by type",
-    {
-      entityType: z.string().describe("Entity type"),
-      content: z.any().describe("Content to create"),
-    },
-    async ({ entityType, content }) => {
-      const handler = entityHandlers[entityType];
-      if (!handler?.create) {
-        return {
-          content: [{ type: "text", text: `Create not supported for: ${entityType}` }],
-          isError: true,
-        };
-      }
-      const result = await handler.create(content);
+    "read_context",
+    "Read the trip context markdown for the current trip",
+    noParams,
+    async () => {
+      const result = await storage.readContext(normalizedTripId);
       return {
-        content: [
-          {
-            type: "text",
-            text: typeof result === "string" ? result : JSON.stringify(result, null, 2),
-          },
-        ],
+        content: [{ type: "text", text: result }],
       };
     },
   ),
   tool(
-    "update_entity",
-    "Update any entity by type",
-    {
-      entityType: z.string().describe("Entity type"),
-      id: z.string().describe("Entity ID"),
-      content: z.any().describe("Content to update"),
-    },
-    async ({ entityType, id, content }) => {
-      const handler = entityHandlers[entityType];
-      if (!handler?.update) {
+    "update_context",
+    "Replace the trip context markdown for the current trip (requires full markdown in content)",
+    contextUpdateSchema,
+    async (input) => {
+      const resolved = resolveContent(input ?? {});
+      if (!resolved.ok) {
         return {
-          content: [{ type: "text", text: `Update not supported for: ${entityType}` }],
+          content: [{ type: "text", text: resolved.error }],
           isError: true,
         };
       }
-      const result = await handler.update(id, content);
-      if (result === null) {
-        return {
-          content: [{ type: "text", text: `No ${entityType} found for ${id}` }],
-          isError: true,
-        };
-      }
+      await storage.writeContext(normalizedTripId, resolved.content);
       return {
-        content: [{ type: "text", text: `Updated ${entityType} for ${id}` }],
-      };
-    },
-  ),
-  tool(
-    "list_entities",
-    "List entities of a type",
-    {
-      entityType: z.string().describe("Entity type (trip, uploads, conversations)"),
-      parentId: z.string().optional().describe("Parent ID if scoped (e.g., tripId)"),
-    },
-    async ({ entityType, parentId }) => {
-      const handler = entityHandlers[entityType];
-      if (!handler?.list) {
-        return {
-          content: [{ type: "text", text: `List not supported for: ${entityType}` }],
-          isError: true,
-        };
-      }
-      if (entityTypesRequiringParent.has(entityType) && !parentId) {
-        return {
-          content: [{ type: "text", text: `parentId is required for ${entityType}` }],
-          isError: true,
-        };
-      }
-      const result = await handler.list(parentId);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        content: [{ type: "text", text: `Updated context for ${normalizedTripId}` }],
       };
     },
   ),
   tool(
     "toggle_todo",
     "Toggle a TODO checkbox in the itinerary",
-    {
-      tripId: z.string(),
-      lineNumber: z.number().describe("1-based line number"),
-    },
-    async ({ tripId, lineNumber }) => {
-      const result = await storage.toggleTodoAtLine(tripId, lineNumber);
+    toggleTodoSchema,
+    async ({ lineNumber }) => {
+      const result = await storage.toggleTodoAtLine(normalizedTripId, lineNumber);
       return {
         content: [
           {
@@ -183,4 +103,5 @@ export const entityTools = [
       };
     },
   ),
-];
+  ];
+}

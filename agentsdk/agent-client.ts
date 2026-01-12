@@ -53,6 +53,7 @@ export interface AgentQueryOptions {
 export class AgentClient {
   private defaultOptions: AgentQueryOptions;
   private allowedTripId: string | null = null;
+  private allowedToolSet: Set<string> | null = null;
 
   constructor(options?: Partial<AgentQueryOptions>) {
     this.defaultOptions = {
@@ -63,11 +64,10 @@ export class AgentClient {
       allowedTools: [
         "Task", "Bash", "Glob", "Grep", "LS", "ExitPlanMode", "Read", "Edit", "MultiEdit", "Write", "NotebookEdit",
         "WebFetch", "TodoWrite", "WebSearch", "BashOutput", "KillBash",
-        // Entity tools (MCP server "entity-tools" prefixes them with mcp__entity-tools__)
-        "mcp__entity-tools__list_entity_types", "mcp__entity-tools__list_entities",
-        "mcp__entity-tools__read_entity", "mcp__entity-tools__create_entity",
-        "mcp__entity-tools__update_entity", "mcp__entity-tools__toggle_todo",
-        "mcp__entity-tools__complete_task",
+        // Trip tools (MCP server "entity-tools" prefixes them with mcp__entity-tools__)
+        "mcp__entity-tools__read_itinerary", "mcp__entity-tools__update_itinerary",
+        "mcp__entity-tools__read_context", "mcp__entity-tools__update_context",
+        "mcp__entity-tools__toggle_todo", "mcp__entity-tools__complete_task",
         "Skill",
       ],
       appendSystemPrompt: SANDBOX_SYSTEM_PROMPT,
@@ -75,6 +75,26 @@ export class AgentClient {
       stderr: (msg: string) => console.error("[claude-sdk]", msg.trim()),
       hooks: {
         PreToolUse: [
+          {
+            matcher: ".*",
+            hooks: [
+              async (input: any): Promise<HookJSONOutput> => {
+                const toolName = input.tool_name;
+                const allowedToolSet = this.allowedToolSet;
+                if (!allowedToolSet || !toolName) {
+                  return { continue: true };
+                }
+                if (allowedToolSet.has(toolName)) {
+                  return { continue: true };
+                }
+                return {
+                  decision: "block",
+                  stopReason: `Tool ${toolName} is not allowed for this session. Use the trip tools only.`,
+                  continue: false,
+                };
+              },
+            ],
+          },
           {
             matcher: "Write|Edit|MultiEdit",
             // Only allow file writes/edits to paths under ~/.travelagent for now.
@@ -150,7 +170,9 @@ export class AgentClient {
     mergedOptions.includePartialMessages = true;
 
     const previousAllowedTripId = this.allowedTripId;
+    const previousAllowedToolSet = this.allowedToolSet;
     this.allowedTripId = mergedOptions.allowedTripId ?? null;
+    this.allowedToolSet = mergedOptions.allowedTools ? new Set(mergedOptions.allowedTools) : null;
     try {
       for await (const message of query({
         prompt,
@@ -160,6 +182,7 @@ export class AgentClient {
       }
     } finally {
       this.allowedTripId = previousAllowedTripId;
+      this.allowedToolSet = previousAllowedToolSet;
     }
   }
 
