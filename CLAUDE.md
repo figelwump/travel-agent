@@ -30,6 +30,35 @@ Always test bug fixes and feature work using the Playwright MCP before consideri
 - Test against that port (e.g., `http://localhost:3002`)
 - Only kill the server you started when done testing
 
+## CLI Debug Sessions
+
+When debugging agent behavior (multi-turn chat, tool calls, response flow), use the CLI session runner to capture a clean JSONL transcript and iterate until it looks good. The CLI does **not** emit partial token streams and echoes JSONL to stdout by default.
+
+Run a session (single message):
+```bash
+TRAVEL_AGENT_URL=http://localhost:3002 bun run cli session run --message "..." --trip "Debug Trip"
+```
+
+Run a multi-turn session:
+```bash
+TRAVEL_AGENT_URL=http://localhost:3002 bun run cli session run --input docs/session.example.json --trip "Debug Trip"
+```
+
+Working with an existing trip (by ID):
+```bash
+TRAVEL_AGENT_URL=http://localhost:3002 bun run cli trips list
+# pick an id from the output, then:
+TRAVEL_AGENT_URL=http://localhost:3002 bun run cli session run --message "..." --trip-id <tripId>
+```
+
+Creating a new trip via the CLI:
+```bash
+TRAVEL_AGENT_URL=http://localhost:3002 bun run cli session run --message "..." --trip "New Trip Name"
+```
+Use `--no-create` to prevent auto-creation when you only want existing trips.
+
+Transcripts are saved under `debug/transcripts/session-<timestamp>.jsonl`. Use the transcript to verify fixes, then keep iterating until the session looks correct for the issue being debugged or the feature being tested.
+
 ## Architecture
 
 This is a personal travel planning agent with a Bun server backend and React frontend. The agent uses the Claude Agent SDK to run agentic conversations with tool use.
