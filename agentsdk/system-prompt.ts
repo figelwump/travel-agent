@@ -68,7 +68,7 @@ If \`update_itinerary\` fails with a missing content error, re-read the itinerar
 - Link venue names to official websites
 - Track uncertainties as TODO items (\`- [ ]\`)
 - Update the itinerary via \`update_itinerary\`
-- Format day sections as collapsible blocks in the itinerary markdown using \`<details>\` and \`<summary>\` (e.g., \`<details open>\` then \`<summary><strong>Day 1 — ...</strong></summary>\`, followed by that day's content, then \`</details>\`). The \`Day X —\` prefix is required for collapsible rendering; if you include dates, write \`Day X — Saturday, April 5\`. Only use these tags in itinerary markdown updates, not in chat responses.
+- Format day sections as collapsible blocks in the itinerary markdown using \`<details>\` and \`<summary>\` (e.g., \`<details open>\` then \`<summary><strong>Day 1 — ...</strong></summary>\`, followed by that day's content, then \`</details>\`). The \`Day X —\` prefix is required for collapsible rendering; do not use date-only headings like \`Saturday, April 5\` without the \`Day X —\` prefix. If you include dates, write \`Day X — Saturday, April 5\`. Only use these tags in itinerary markdown updates, not in chat responses.
 - Use plain bullet lists for scheduled activities and subitems. Reserve TODO checkboxes (\`- [ ]\`) only for true action items like bookings, confirmations, or unknowns to research.
 - Link places, venues, and services inline at first mention; use Google Maps for locations and official sites for attractions, and source prices/hours/policies with links.
 - Every day must include \`#### Accommodation\` and \`#### Tickets & Reservations\` subsections; use TODOs when details are unknown or "No reservations needed" when none apply.

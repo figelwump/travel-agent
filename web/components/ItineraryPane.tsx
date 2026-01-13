@@ -90,7 +90,17 @@ function normalizeDaySections(md: string): string {
   let inAutoDetails = false;
   let manualDetailsDepth = 0;
   let dayHeadingLevel: number | null = null;
-  const dayHeadingRegex = /^(#{2,6})\s+(Day\s+\d+\b.*)$/i;
+  const emphasisPrefix = '(?:\\*\\*|__)?';
+  const emphasisSuffix = '(?:\\*\\*|__)?';
+  const dayHeadingRegex = new RegExp(
+    `^(#{2,6})\\s+${emphasisPrefix}(Day\\s+\\d+\\b.*)${emphasisSuffix}\\s*$`,
+    'i'
+  );
+  const weekdayPattern = '(?:Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)';
+  const weekdayHeadingRegex = new RegExp(
+    `^(#{2,6})\\s+${emphasisPrefix}(${weekdayPattern}\\b.*)${emphasisSuffix}\\s*$`,
+    'i'
+  );
   const headingRegex = /^(#{1,6})\s+/;
   const detailsOpenRegex = /<details\b[^>]*>/i;
   const detailsCloseRegex = /<\/details>/i;
@@ -107,13 +117,14 @@ function normalizeDaySections(md: string): string {
     if (detailsCloseRegex.test(line) && manualDetailsDepth > 0) manualDetailsDepth -= 1;
     if (detailsOpenRegex.test(line)) manualDetailsDepth += 1;
 
-    const dayHeadingMatch = line.match(dayHeadingRegex);
+    const dayHeadingMatch = line.match(dayHeadingRegex) || line.match(weekdayHeadingRegex);
     if (dayHeadingMatch && manualDetailsDepth === 0) {
       closeAutoDetails();
       inAutoDetails = true;
       dayHeadingLevel = dayHeadingMatch[1].length;
+      const headingText = dayHeadingMatch[2].replace(/\*\*|__/g, '').trim();
       out.push('<details open>');
-      out.push(`<summary><strong>${dayHeadingMatch[2].trim()}</strong></summary>`);
+      out.push(`<summary><strong>${headingText}</strong></summary>`);
       continue;
     }
 
