@@ -517,8 +517,9 @@ export async function ensureMapReferencedInItinerary(tripId: string, assetUrl: s
   const itinerary = await readItinerary(tripId);
   const marker = "![Trip map]";
   const line = `${marker}(${assetUrl})`;
-  if (itinerary.includes(marker)) {
-    const next = itinerary.replace(/!\[Trip map\]\([^)]+\)/, line);
+  const markerRegex = /!\[Trip map\]\([^)]+\)/i;
+  if (markerRegex.test(itinerary)) {
+    const next = itinerary.replace(markerRegex, line);
     if (next !== itinerary) {
       await writeItinerary(tripId, next);
     }

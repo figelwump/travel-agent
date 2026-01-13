@@ -8,6 +8,16 @@ export function createTripTools(tripId: string) {
     throw new Error("Trip ID is required to create trip tools.");
   }
   const noParams = {};
+  const mapSchema = {
+    destinations: z
+      .array(z.string())
+      .optional()
+      .describe("Ordered list of destination names or cities for the trip map"),
+    force: z
+      .boolean()
+      .optional()
+      .describe("Regenerate the map even if one is already referenced"),
+  };
   const itineraryUpdateSchema = {
     content: z.any().describe("Full itinerary markdown content"),
   };
@@ -56,6 +66,23 @@ export function createTripTools(tripId: string) {
     };
   };
 
+  const extractDestinationsFromMarkdown = (md: string): string[] => {
+    const lines = md.split("\n");
+    const idx = lines.findIndex((line) => /^##\s+Destinations\s*$/i.test(line.trim()));
+    if (idx === -1) return [];
+    const out: string[] = [];
+    for (let i = idx + 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (/^#{1,6}\s+/.test(line)) break;
+      const match = line.match(/^-+\s+(?!\[[ xX]\]\s*)(.+)$/);
+      if (!match) continue;
+      const item = match[1].trim();
+      if (!item) continue;
+      out.push(item.replace(/\s+\[[^\]]+\]\s*$/, ""));
+    }
+    return Array.from(new Set(out)).slice(0, 12);
+  };
+
   return [
     tool(
       "read_itinerary",
@@ -89,6 +116,56 @@ export function createTripTools(tripId: string) {
         await storage.writeItinerary(normalizedTripId, resolved.content);
         return {
           content: [{ type: "text", text: `Updated itinerary for ${normalizedTripId}` }],
+        };
+      },
+    ),
+    tool(
+      "generate_trip_map",
+      "Generate or refresh a trip map image and ensure it is referenced in the itinerary",
+      mapSchema,
+      async (input) => {
+        const destinationsInput = Array.isArray(input?.destinations) ? input?.destinations : [];
+        const destinations = destinationsInput.map((d) => d.trim()).filter(Boolean).slice(0, 12);
+        const force = Boolean(input?.force);
+        let itinerary: string | null = null;
+
+        if (!force) {
+          itinerary = await storage.readItinerary(normalizedTripId);
+          if (itinerary.includes("![Trip map]")) {
+            return {
+              content: [{ type: "text", text: "Trip map already referenced. Use force: true to regenerate." }],
+            };
+          }
+        }
+
+        let finalDestinations = destinations;
+        if (finalDestinations.length === 0) {
+          itinerary = itinerary ?? await storage.readItinerary(normalizedTripId);
+          finalDestinations = extractDestinationsFromMarkdown(itinerary);
+        }
+
+        if (finalDestinations.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "No destinations found. Provide destinations or add a ## Destinations section to the itinerary.",
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const { assetUrl } = await storage.generateTripMap(normalizedTripId, finalDestinations);
+        await storage.ensureMapReferencedInItinerary(normalizedTripId, assetUrl);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Generated trip map with ${finalDestinations.length} destination${finalDestinations.length === 1 ? "" : "s"}.`,
+            },
+            { type: "text", text: assetUrl },
+          ],
         };
       },
     ),

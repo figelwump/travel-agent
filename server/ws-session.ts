@@ -264,8 +264,14 @@ export class ConversationSession {
   }
 
   private async checkAndBroadcastItineraryChange(): Promise<void> {
-    if (this.itineraryMtimeBeforeQuery === null) return;
     const currentMtime = await this.getItineraryMtime();
+    if (this.itineraryMtimeBeforeQuery === null) {
+      if (currentMtime !== null) {
+        this.broadcast({ type: "itinerary_updated", tripId: this.tripId });
+      }
+      this.itineraryMtimeBeforeQuery = null;
+      return;
+    }
     if (currentMtime !== null && currentMtime !== this.itineraryMtimeBeforeQuery) {
       this.broadcast({ type: "itinerary_updated", tripId: this.tripId });
     }

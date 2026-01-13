@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "fs/promises";
+import { mkdtemp, readdir, rm } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import { createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
@@ -200,5 +200,63 @@ describe("mcp trip tools", () => {
 
     expect(result.content?.[0]?.text).toContain("Updated global travel profile");
     expect(await storage.readGlobalContext()).toBe(updated);
+  });
+
+  test("generate_trip_map tool creates map and references it", async () => {
+    const trip = await storage.createTrip("Map MCP Trip");
+    const itinerary = [
+      "# Map MCP Trip — Itinerary",
+      "",
+      "## Destinations",
+      "- Tokyo",
+      "- Kyoto",
+      "- Osaka",
+      "",
+    ].join("\n");
+    await storage.writeItinerary(trip.id, itinerary);
+
+    const previousNanoKey = process.env.NANO_BANANA_PRO_API_KEY;
+    const previousGeminiKey = process.env.GEMINI_API_KEY;
+    delete process.env.NANO_BANANA_PRO_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+
+    const mcpServer = createSdkMcpServer({ name: "t", tools: createTripTools(trip.id) });
+    const server = (mcpServer as any).instance;
+    const callHandler = server?.server?._requestHandlers?.get("tools/call");
+
+    let result;
+    try {
+      result = await callHandler(
+        {
+          jsonrpc: "2.0",
+          id: 4,
+          method: "tools/call",
+          params: {
+            name: "generate_trip_map",
+            arguments: {},
+          },
+        },
+        {}
+      );
+    } finally {
+      if (previousNanoKey === undefined) {
+        delete process.env.NANO_BANANA_PRO_API_KEY;
+      } else {
+        process.env.NANO_BANANA_PRO_API_KEY = previousNanoKey;
+      }
+      if (previousGeminiKey === undefined) {
+        delete process.env.GEMINI_API_KEY;
+      } else {
+        process.env.GEMINI_API_KEY = previousGeminiKey;
+      }
+    }
+
+    expect(result.content?.[0]?.text).toContain("Generated trip map");
+    const updated = await storage.readItinerary(trip.id);
+    expect(updated).toContain("![Trip map](");
+
+    const assetsDir = path.join(tempHome ?? "", "trips", trip.id, "assets");
+    const assets = await readdir(assetsDir);
+    expect(assets.some((name) => name.startsWith("itinerary-map."))).toBe(true);
   });
 });

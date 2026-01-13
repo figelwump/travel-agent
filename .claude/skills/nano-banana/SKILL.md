@@ -107,5 +107,5 @@ Flat illustration style with warm earth tones.
 
 ## Cross-Skill Transitions
 
-- **After generating a map**: Use `travel-planner` to embed the image in an itinerary
-- **For trip planning context**: Use `travel-planner` to understand what images are needed
+- **After generating a map**: In the travel agent, prefer the `generate_trip_map` tool so the map is stored and referenced correctly in the itinerary
+- **For trip planning context**: See `docs/itinerary-conventions.md` and `docs/inline-linking.md`

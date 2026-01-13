@@ -45,6 +45,21 @@ Include 2-3 images per day showing key locations/activities. Use stable public U
 
 Images can be placed at the top of the day section or inline near relevant activities.
 
+## Trip map
+
+For multi-destination trips (2+ stops), maintain a `## Destinations` section with an ordered bullet list using `-` (no numbering, no checkboxes). This list is used to generate the trip map. Use the `generate_trip_map` tool to create or refresh the map, which will insert a `![Trip map](...)` image into the itinerary.
+Do not manually add a trip map image or section; the tool inserts the canonical map line.
+
+Example:
+
+```markdown
+## Destinations
+
+- Tokyo
+- Kyoto
+- Osaka
+```
+
 ## Collapsible sections
 
 For collapsible day sections, use:
@@ -106,6 +121,10 @@ If no reservations needed:
 ## Complete day example
 
 ```markdown
+## Trip Map
+
+![Trip map](/api/trips/<tripId>/assets/itinerary-map.png)
+
 <details open>
 <summary><strong>Day 1 — Saturday, April 5: Arrival & Settling In</strong></summary>
 
