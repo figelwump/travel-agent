@@ -2,6 +2,7 @@ import * as storage from "./storage";
 import { createHeaders, jsonResponse, textResponse } from "./http";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { logTs } from "./log";
 
 type HeaderCtx = Parameters<typeof createHeaders>[1];
 
@@ -79,7 +80,7 @@ export async function handleApiRequest(req: Request, url: URL, ctx?: HeaderCtx):
   if (segments[3] === "itinerary" && segments.length === 4) {
     if (req.method === "GET") {
       const itinerary = await storage.readItinerary(tripId);
-      console.log(`[API] itinerary GET tripId=${tripId} length=${itinerary.length}`);
+      logTs(`[API] itinerary GET tripId=${tripId} length=${itinerary.length}`);
       return textResponse(itinerary, 200, ctx, "text/markdown");
     }
     if (req.method === "PUT") {

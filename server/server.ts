@@ -2,6 +2,7 @@ import "dotenv/config";
 import { WebSocketHandler } from "./ws-handler";
 import type { WSClient } from "./ws-types";
 import { handleApiRequest } from "./api";
+import { logTs } from "./log";
 import * as path from "path";
 import * as fs from "fs/promises";
 import { Buffer } from "buffer";
@@ -252,6 +253,6 @@ const server = Bun.serve({
   },
 });
 
-console.log(`Server running at http://localhost:${server.port}`);
-console.log(`WebSocket endpoint available at ws://localhost:${server.port}/ws`);
-console.log("Serving Travel Agent UI from /web");
+logTs(`Server running at http://localhost:${server.port}`);
+logTs(`WebSocket endpoint available at ws://localhost:${server.port}/ws`);
+logTs("Serving Travel Agent UI from /web");

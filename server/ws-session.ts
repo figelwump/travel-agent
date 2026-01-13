@@ -4,6 +4,7 @@ import { createSdkMcpServer, type SDKMessage } from "@anthropic-ai/claude-agent-
 import * as storage from "./storage";
 import * as fs from "fs/promises";
 import { createTripTools, completionTools } from "./tools";
+import { logTs } from "./log";
 
 function createTripMcpServer(
   tripId: string,
@@ -70,11 +71,6 @@ function selectAllowedTripTools(message: string, itineraryTruncated: boolean, co
 
 function nowIso(): string {
   return new Date().toISOString();
-}
-
-function logTs(...args: unknown[]): void {
-  const ts = new Date().toISOString().slice(11, 23); // HH:mm:ss.sss
-  console.log(`[${ts}]`, ...args);
 }
 
 function createTextBroadcast(type: string, payload: Record<string, unknown>) {
@@ -544,7 +540,7 @@ export class ConversationSession {
         if (Array.isArray(content)) {
           for (const block of content) {
             if (block.type === "tool_use") {
-              console.log(`[ToolUse] ${block.name}`, JSON.stringify(block.input ?? {}).slice(0, 300));
+              logTs(`[ToolUse] ${block.name}`, JSON.stringify(block.input ?? {}).slice(0, 300));
             }
           }
         }
@@ -555,12 +551,12 @@ export class ConversationSession {
         const result = typeof msgAny.content === "string" ? msgAny.content : JSON.stringify(msgAny.content ?? "");
         const isError = msgAny.is_error || msgAny.isError;
         const toolName = msgAny.tool_name ?? msgAny.name ?? "unknown";
-        console.log(`[ToolResult] tool=${toolName} isError=${isError}:`, result.slice(0, 500) + (result.length > 500 ? "..." : ""));
+        logTs(`[ToolResult] tool=${toolName} isError=${isError}:`, result.slice(0, 500) + (result.length > 500 ? "..." : ""));
       }
 
       // Log other message types
       if (messageType !== "assistant" && messageType !== "tool_result") {
-        console.log(`[SDKMessage] type=${messageType}`, msgAny.subtype ? `subtype=${msgAny.subtype}` : "");
+        logTs(`[SDKMessage] type=${messageType}`, msgAny.subtype ? `subtype=${msgAny.subtype}` : "");
       }
     }
 
@@ -592,7 +588,7 @@ export class ConversationSession {
       const text = joinAssistantText(message);
       const cleanedText = text ? sanitizeAssistantText(text) : "";
       if (cleanedText) {
-        console.log(`[AssistantResponse] ${cleanedText.slice(0, 300)}${cleanedText.length > 300 ? "..." : ""}`);
+        logTs(`[AssistantResponse] ${cleanedText.slice(0, 300)}${cleanedText.length > 300 ? "..." : ""}`);
         const toolActivity = Array.from(this.pendingToolActivity.values());
         const msg: storage.StoredMessage = {
           id: crypto.randomUUID(),
@@ -620,7 +616,7 @@ export class ConversationSession {
 
     if (messageType === "result") {
       const subtype = (message as any).subtype;
-      console.log(`[Result] ${subtype}, cost=$${(message as any).total_cost_usd?.toFixed(4) ?? "?"}, duration=${(message as any).duration_ms ?? "?"}ms`);
+      logTs(`[Result] ${subtype}, cost=$${(message as any).total_cost_usd?.toFixed(4) ?? "?"}, duration=${(message as any).duration_ms ?? "?"}ms`);
       if (subtype === "success") {
         this.broadcast({
           type: "result",
@@ -647,12 +643,12 @@ export class ConversationSession {
       const contentStr = typeof content === "string"
         ? content
         : JSON.stringify(content, null, 2);
-      console.log(`[SDKUserMessage] Full message structure:`);
-      console.log(JSON.stringify(message, null, 2).slice(0, 2000));
+      logTs(`[SDKUserMessage] Full message structure:`);
+      logTs(JSON.stringify(message, null, 2).slice(0, 2000));
       return;
     }
 
     // Log unhandled message types
-    console.log(`[SDKMessage:Unhandled] type=${message.type}`, JSON.stringify(message).slice(0, 200));
+    logTs(`[SDKMessage:Unhandled] type=${message.type}`, JSON.stringify(message).slice(0, 200));
   }
 }
