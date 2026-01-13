@@ -141,6 +141,16 @@ export async function handleApiRequest(req: Request, url: URL, ctx?: HeaderCtx):
     return notFound(ctx);
   }
 
+  if (segments[3] === "conversations" && segments[4] && segments.length === 5) {
+    const conversationId = segments[4];
+    if (req.method === "DELETE") {
+      const deleted = await storage.deleteConversation(tripId, conversationId);
+      if (!deleted) return notFound(ctx);
+      return ok(ctx);
+    }
+    return notFound(ctx);
+  }
+
   if (segments[3] === "conversations" && segments[4] && segments.length === 6 && segments[5] === "messages" && req.method === "GET") {
     const conversationId = segments[4];
     const limitParam = url.searchParams.get("limit");

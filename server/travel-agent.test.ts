@@ -125,6 +125,26 @@ describe("api itinerary", () => {
   });
 });
 
+describe("api conversations", () => {
+  test("DELETE conversation removes it", async () => {
+    const trip = await storage.createTrip("Conversation Trip");
+    const convo = await storage.createConversation(trip.id, "Cleanup");
+
+    let res = await apiCall(`/api/trips/${trip.id}/conversations`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toHaveLength(1);
+
+    res = await apiCall(`/api/trips/${trip.id}/conversations/${convo.id}`, { method: "DELETE" });
+    expect(res.status).toBe(200);
+
+    res = await apiCall(`/api/trips/${trip.id}/conversations`);
+    expect(await res.json()).toHaveLength(0);
+
+    res = await apiCall(`/api/trips/${trip.id}/conversations/${convo.id}`, { method: "DELETE" });
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("mcp trip tools", () => {
   test("update_itinerary tool writes full markdown content", async () => {
     const trip = await storage.createTrip("MCP Trip");

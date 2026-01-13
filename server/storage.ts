@@ -458,6 +458,22 @@ export async function readMessages(tripId: string, conversationId: string, limit
   }
 }
 
+export async function deleteConversation(tripId: string, conversationId: string): Promise<boolean> {
+  const root = conversationsRoot(tripId);
+  const resolved = safePathWithin(root, conversationId);
+  if (!resolved) return false;
+  try {
+    const stat = await fs.stat(resolved);
+    if (!stat.isDirectory()) return false;
+  } catch (err: any) {
+    if (err?.code === "ENOENT") return false;
+    throw err;
+  }
+  await fs.rm(resolved, { recursive: true, force: true });
+  await touchTrip(tripId);
+  return true;
+}
+
 export function safePathWithin(rootDir: string, relPath: string): string | null {
   const resolved = path.resolve(rootDir, relPath);
   const normalizedRoot = path.resolve(rootDir);

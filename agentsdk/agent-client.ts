@@ -62,7 +62,7 @@ export class AgentClient {
     this.defaultOptions = {
       maxTurns: 100,
       cwd: process.cwd(),
-      model: "sonnet",
+      model: "opus-4.5-thinking",
       includePartialMessages: true,
       allowedTools: [
         "WebFetch", "WebSearch", "Skill",

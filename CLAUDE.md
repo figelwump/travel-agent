@@ -34,7 +34,7 @@ Always run `bun test` after making changes.
 
 ## Commit Guidance
 
-When asked to commit, only include changes made by the agent for the current task. Do not add, revert, or modify unrelated working tree changes. If there are changes unrelated changes, don't aask the user to reconfirm the commit -- just go ahead and commit the changes you made.
+When asked to commit, only include changes made by the agent for the current task. Ignore unrelated working tree changes. If there are changes unrelated changes, do not ask the user to reconfirm the commit -- just go ahead and commit the changes you made.
 
 ## CLI Debug Sessions
 
@@ -46,6 +46,7 @@ Run a session (single message):
 ```bash
 TRAVEL_AGENT_URL=http://localhost:3002 bun run cli session run --message "..." --trip "Debug Trip"
 ```
+By default, `--trip` creates a new trip even if a matching name exists. Use `--trip-id` or `--reuse-trip` when you need to reuse an existing trip.
 
 Run a multi-turn session:
 ```bash
@@ -63,7 +64,9 @@ Creating a new trip via the CLI:
 ```bash
 TRAVEL_AGENT_URL=http://localhost:3002 bun run cli session run --message "..." --trip "New Trip Name"
 ```
-Use `--no-create` to prevent auto-creation when you only want existing trips.
+CLI-created trips are deleted after the session by default; use `--no-cleanup` to keep them.
+
+Use `--no-create` to avoid creating new trips/conversations; pair it with `--trip-id`, `--reuse-trip`, or `--conversation-id` to reuse existing data. The CLI creates a new conversation by default; use `--reuse-conversation` when you want to attach to an existing conversation by title.
 
 Transcripts are saved under `debug/transcripts/session-<timestamp>.jsonl`. Use the transcript to verify fixes, then keep iterating until the session looks correct for the issue being debugged or the feature being tested.
 
