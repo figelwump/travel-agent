@@ -109,24 +109,31 @@ export function ChatPanel({
 
             <p className="text-sm max-w-sm mb-6" style={{ color: 'hsl(var(--text-secondary))', lineHeight: 1.7 }}>
               {tripName
-                ? 'Share your travel dates, interests, and must-see destinations. I\'ll help craft your perfect itinerary.'
+                ? 'Pick a starting point below, or just start typing what you have in mind.'
                 : 'Create a new trip to start planning your next adventure with your personal travel agent.'}
             </p>
 
             {tripName && (
               <div className="flex flex-wrap gap-2 justify-center">
-                {['Beach getaway', 'City exploration', 'Mountain retreat', 'Cultural immersion'].map((suggestion, i) => (
+                {[
+                  {
+                    label: 'Start a new trip',
+                    prompt: 'I am planning a new trip. Please walk me through the planning interview.',
+                  },
+                  {
+                    label: 'Use an existing itinerary',
+                    prompt: 'I already have a trip plan. Ask me to upload files or paste my itinerary and bookings so you can help improve it.',
+                  },
+                ].map((suggestion, i) => (
                   <button
-                    key={suggestion}
+                    key={suggestion.label}
                     type="button"
                     className="suggestion-chip animate-fade-in"
                     style={{ animationDelay: `${i * 75}ms` }}
-                    onClick={() => {
-                      setDraft(`I'm interested in a ${suggestion.toLowerCase()} experience.`);
-                    }}
+                    onClick={() => onSend(suggestion.prompt)}
                     disabled={disabled}
                   >
-                    {suggestion}
+                    {suggestion.label}
                   </button>
                 ))}
               </div>

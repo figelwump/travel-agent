@@ -141,8 +141,6 @@ export async function createTrip(name: string): Promise<Trip> {
   // Seed context
   await ensureContext(id);
 
-  // Seed a default conversation
-  await createConversation(id, "Planning");
   return trip;
 }
 
@@ -380,8 +378,18 @@ export async function listUploads(tripId: string): Promise<string[]> {
   return ents.filter((e) => e.isFile()).map((e) => e.name);
 }
 
-export async function createConversation(tripId: string, title?: string): Promise<Conversation> {
+type CreateConversationOptions = {
+  title?: string;
+  initialAssistantMessage?: string;
+};
+
+export async function createConversation(
+  tripId: string,
+  options?: string | CreateConversationOptions,
+): Promise<Conversation> {
   await fs.mkdir(conversationsRoot(tripId), { recursive: true });
+  const resolvedOptions = typeof options === "string" ? { title: options } : (options ?? {});
+  const initialAssistantMessage = resolvedOptions.initialAssistantMessage?.trim() || "";
   const id = crypto.randomUUID();
   const dir = conversationDir(tripId, id);
   await fs.mkdir(dir, { recursive: true });
@@ -389,13 +397,21 @@ export async function createConversation(tripId: string, title?: string): Promis
   const meta: Conversation = {
     id,
     tripId,
-    title: (title?.trim() || "Chat").slice(0, 80),
+    title: (resolvedOptions.title?.trim() || "Chat").slice(0, 80),
     createdAt: t,
     updatedAt: t,
     sdkSessionId: null,
   };
   await writeFileAtomic(conversationMetaPath(tripId, id), JSON.stringify(meta, null, 2));
   await fs.writeFile(messagesPath(tripId, id), "", "utf8");
+  if (initialAssistantMessage) {
+    await appendMessage(tripId, id, {
+      id: crypto.randomUUID(),
+      type: "assistant",
+      content: initialAssistantMessage,
+      timestamp: nowIso(),
+    });
+  }
   await touchTrip(tripId);
   return meta;
 }

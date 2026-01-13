@@ -129,7 +129,14 @@ export async function handleApiRequest(req: Request, url: URL, ctx?: HeaderCtx):
     if (req.method === "POST") {
       const body = await parseJson(req);
       const title = typeof body?.title === "string" ? body.title : undefined;
-      return jsonResponse(await storage.createConversation(tripId, title), 201, ctx);
+      const initialAssistantMessage = typeof body?.initialAssistantMessage === "string"
+        ? body.initialAssistantMessage
+        : undefined;
+      return jsonResponse(
+        await storage.createConversation(tripId, { title, initialAssistantMessage }),
+        201,
+        ctx,
+      );
     }
     return notFound(ctx);
   }

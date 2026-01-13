@@ -40,9 +40,11 @@ describe("storage", () => {
     const trip = await storage.createTrip("Test Trip");
     const itinerary = await storage.readItinerary(trip.id);
     const context = await storage.readContext(trip.id);
+    const conversations = await storage.listConversations(trip.id);
 
     expect(itinerary).toBe("");
     expect(context).toContain("# Trip Context");
+    expect(conversations).toHaveLength(0);
   });
 
   test("writeItinerary + toggleTodoAtLine updates the right line", async () => {

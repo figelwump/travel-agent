@@ -744,7 +744,6 @@ const App: React.FC = () => {
     await refreshTrips();
     setActiveTripId(res.data.id);
 
-    // Create initial conversation and start the travel planner skill
     const convRes = await apiFetch<Conversation>(
       `/api/trips/${res.data.id}/conversations`,
       { method: 'POST', body: JSON.stringify({ title: 'Planning' }) },
@@ -754,19 +753,9 @@ const App: React.FC = () => {
       await refreshConversations(res.data.id);
       setActiveConversationId(convRes.data.id);
       setMessages([]);
-      // Subscribe to the new conversation
-      sendMessage({ type: 'subscribe', tripId: res.data.id, conversationId: convRes.data.id });
-      // Initiate the travel planner skill
-      setTimeout(() => {
-        const initPrompt = `I'm starting to plan a new trip called "${name}". Let's begin the planning process.`;
-        const timestamp = new Date().toISOString();
-        const userMessage: Message = { id: Date.now().toString(), type: 'user', content: initPrompt, timestamp };
-        setMessages(prev => [...prev, userMessage]);
-        toolActivityMessageIdRef.current = null;
-        toolUseToMessageRef.current = {};
-        setIsLoading(true);
-        sendMessage({ type: 'chat', tripId: res.data.id, conversationId: convRes.data.id, content: initPrompt });
-      }, 300);
+      toolActivityMessageIdRef.current = null;
+      toolUseToMessageRef.current = {};
+      setIsLoading(false);
     }
   };
 

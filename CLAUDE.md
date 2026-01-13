@@ -34,11 +34,13 @@ Always run `bun test` after making changes.
 
 ## Commit Guidance
 
-When asked to commit, only include changes made by the agent for the current task. Do not add, revert, or modify unrelated working tree changes.
+When asked to commit, only include changes made by the agent for the current task. Do not add, revert, or modify unrelated working tree changes. If there are changes unrelated changes, don't aask the user to reconfirm the commit -- just go ahead and commit the changes you made.
 
 ## CLI Debug Sessions
 
-When debugging agent behavior (multi-turn chat, tool calls, response flow), use the CLI session runner to capture a clean JSONL transcript and iterate until it looks good. The CLI does **not** emit partial token streams and echoes JSONL to stdout by default.
+When testing a new feature or debugging agent behavior (multi-turn chat, tool calls, response flow), use the CLI session runner to capture a clean JSONL transcript and iterate until it looks good. The CLI does **not** emit partial token streams and echoes JSONL to stdout by default.
+
+Use this whenever possible to test a feature, verify a fix, debug issues, etc that are related to the agent behavior. For changes that are related to the UI behavior, test in-browser.
 
 Run a session (single message):
 ```bash
