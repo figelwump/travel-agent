@@ -33,6 +33,7 @@ function createTripMcpServer(
 const ALLOWED_TRIP_TOOLS = [
   "mcp__entity-tools__read_itinerary",
   "mcp__entity-tools__update_itinerary",
+  "mcp__entity-tools__generate_trip_map",
   "mcp__entity-tools__read_context",
   "mcp__entity-tools__update_context",
   "mcp__entity-tools__read_global_context",
@@ -172,6 +173,9 @@ export class ConversationSession {
   private agentClient = new AgentClient();
   private sdkSessionId: string | null = null;
   private partialTextBuffer: string | null = null;
+  private abortController: AbortController | null = null;
+  private cancelRequested = false;
+  private resultSent = false;
   private itineraryMtimeBeforeQuery: number | null = null;
   private lastUserMessage: string | null = null;
   private activeAllowedTools: Set<string> | null = null;
@@ -210,6 +214,21 @@ export class ConversationSession {
   endConversation() {
     this.sdkSessionId = null;
     this.queryPromise = null;
+  }
+
+  cancelActiveQuery(): void {
+    if (!this.queryPromise || !this.abortController || this.resultSent) return;
+    this.cancelRequested = true;
+    this.abortController.abort();
+    this.pendingToolActivity.clear();
+    this.resultSent = true;
+    this.broadcast({
+      type: "result",
+      success: false,
+      error: "cancelled",
+      tripId: this.tripId,
+      conversationId: this.conversationId,
+    });
   }
 
   private broadcast(message: any) {
@@ -524,6 +543,10 @@ export class ConversationSession {
     this.itineraryMtimeBeforeQuery = await this.getItineraryMtime();
 
     this.queryPromise = (async () => {
+      this.cancelRequested = false;
+      this.resultSent = false;
+      const abortController = new AbortController();
+      this.abortController = abortController;
       try {
         const ctxPrompt = await this.buildTripContextPrompt();
         logTs(`[TripContext]\n${ctxPrompt.prompt}`);
@@ -569,15 +592,22 @@ export class ConversationSession {
           allowedTripId: this.tripId,
           allowedTools,
           mcpServers: { "entity-tools": mcpServer },
+          abortController,
         })) {
           await this.handleSdkMessage(message);
         }
       } catch (err: any) {
-        console.error("Agent query failed", err);
-        this.broadcastError(err?.message ? String(err.message) : "Query failed");
+        const errMsg = err?.message ? String(err.message) : "";
+        const isAbort = err?.name === "AbortError" || errMsg.toLowerCase().includes("abort");
+        if (!this.cancelRequested && !isAbort) {
+          console.error("Agent query failed", err);
+          this.broadcastError(errMsg || "Query failed");
+        }
       } finally {
         this.activeAllowedTools = null;
         this.queryPromise = null;
+        this.abortController = null;
+        this.cancelRequested = false;
       }
     })();
 
@@ -586,6 +616,9 @@ export class ConversationSession {
 
   private async handleSdkMessage(message: SDKMessage): Promise<void> {
     const messageType = (message as any).type as string | undefined;
+    if (this.cancelRequested && messageType !== "system") {
+      return;
+    }
 
     // Log all non-stream messages with detailed info
     if (messageType !== "stream_event") {
@@ -674,6 +707,8 @@ export class ConversationSession {
     if (messageType === "result") {
       const subtype = (message as any).subtype;
       logTs(`[Result] ${subtype}, cost=$${(message as any).total_cost_usd?.toFixed(4) ?? "?"}, duration=${(message as any).duration_ms ?? "?"}ms`);
+      if (this.resultSent) return;
+      this.resultSent = true;
       if (subtype === "success") {
         this.broadcast({
           type: "result",

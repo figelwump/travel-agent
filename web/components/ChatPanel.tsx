@@ -18,13 +18,14 @@ const SendIcon = () => (
 interface ChatPanelProps {
   isConnected: boolean;
   isLoading: boolean;
-  disabled: boolean;
+  inputDisabled: boolean;
   messages: Message[];
   draft: string;
   setDraft: (v: string) => void;
   textareaHeight?: number | null;
   onTextareaHeightChange?: (height: number) => void;
   onSend: (text: string) => void;
+  onCancel: () => void;
   onUploadFiles: (files: FileList) => void;
   tripName: string | null;
   conversationTitle: string | null;
@@ -34,13 +35,14 @@ interface ChatPanelProps {
 export function ChatPanel({
   isConnected,
   isLoading,
-  disabled,
+  inputDisabled,
   messages,
   draft,
   setDraft,
   textareaHeight,
   onTextareaHeightChange,
   onSend,
+  onCancel,
   onUploadFiles,
   tripName,
   conversationTitle,
@@ -70,8 +72,9 @@ export function ChatPanel({
   }, [textareaHeight, draft]);
 
   const handleSubmit = () => {
+    if (isLoading) return;
     const trimmed = draft.trim();
-    if (!trimmed || disabled) return;
+    if (!trimmed || inputDisabled) return;
     setDraft('');
     onSend(trimmed);
   };
@@ -131,7 +134,7 @@ export function ChatPanel({
                     className="suggestion-chip animate-fade-in"
                     style={{ animationDelay: `${i * 75}ms` }}
                     onClick={() => onSend(suggestion.prompt)}
-                    disabled={disabled}
+                    disabled={inputDisabled}
                   >
                     {suggestion.label}
                   </button>
@@ -194,12 +197,12 @@ export function ChatPanel({
             <button
               type="button"
               className="chat-input-icon-btn"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={disabled}
-              title="Attach files"
-            >
-              <PaperclipIcon />
-            </button>
+            onClick={() => fileInputRef.current?.click()}
+            disabled={inputDisabled}
+            title="Attach files"
+          >
+            <PaperclipIcon />
+          </button>
           </div>
 
           {/* Text input */}
@@ -207,13 +210,14 @@ export function ChatPanel({
             ref={textareaRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder={disabled ? 'Select a trip to begin…' : 'Message your travel agent...'}
+            placeholder={inputDisabled ? 'Select a trip to begin…' : 'Message your travel agent...'}
             className="chat-textarea"
-            disabled={disabled}
+            disabled={inputDisabled}
             rows={1}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
+                if (isLoading) return;
                 handleSubmit();
               }
             }}
@@ -226,16 +230,28 @@ export function ChatPanel({
             }}
           />
 
-          {/* Send button */}
-          <button
-            type="button"
-            className="chat-send-btn"
-            onClick={handleSubmit}
-            disabled={disabled || !draft.trim()}
-            title="Send message"
-          >
-            <SendIcon />
-          </button>
+          {/* Send / Cancel button */}
+          {isLoading ? (
+            <button
+              type="button"
+              className="chat-send-btn"
+              onClick={onCancel}
+              disabled={inputDisabled}
+              title="Cancel response"
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="chat-send-btn"
+              onClick={handleSubmit}
+              disabled={inputDisabled || !draft.trim()}
+              title="Send message"
+            >
+              <SendIcon />
+            </button>
+          )}
         </div>
 
         <div className="chat-input-hint">

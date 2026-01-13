@@ -723,7 +723,7 @@ const App: React.FC = () => {
     );
   }
 
-  const canSend = Boolean(isConnected && !isLoading && activeTripId && activeConversationId);
+  const canType = Boolean(isConnected && activeTripId && activeConversationId);
 
   const handleCreateTrip = () => {
     setNewTripName('');
@@ -824,6 +824,16 @@ const App: React.FC = () => {
     toolUseToMessageRef.current = {};
     setIsLoading(true);
     sendMessage({ type: 'chat', tripId: activeTripId, conversationId: activeConversationId, content: text });
+  };
+
+  const handleCancelResponse = () => {
+    if (!activeTripId || !activeConversationId) return;
+    sendMessage({ type: 'cancel', tripId: activeTripId, conversationId: activeConversationId });
+    setIsLoading(false);
+    queryInProgressRef.current = false;
+    streamingMessageIdRef.current = null;
+    toolActivityMessageIdRef.current = null;
+    toolUseToMessageRef.current = {};
   };
 
   const handleUploadFiles = async (files: FileList) => {
@@ -1006,14 +1016,15 @@ const App: React.FC = () => {
             <ChatPanel
               isConnected={isConnected}
               isLoading={isLoading}
+              inputDisabled={!canType}
               messages={messages}
               draft={activeDraft}
               setDraft={setDraftForActiveTrip}
               textareaHeight={activeDraftHeight}
               onTextareaHeightChange={setDraftHeightForActiveTrip}
               onSend={handleSendUserText}
+              onCancel={handleCancelResponse}
               onUploadFiles={handleUploadFiles}
-              disabled={!canSend}
               tripName={activeTrip?.name ?? null}
               conversationTitle={activeConversation?.title ?? null}
               textareaRef={chatTextareaRef}

@@ -115,6 +115,15 @@ export class WebSocketHandler {
         return;
       }
 
+      if (data.type === "cancel") {
+        const key = this.sessionKey(data.tripId, data.conversationId);
+        const session = this.sessions.get(key);
+        if (session) {
+          session.cancelActiveQuery();
+        }
+        return;
+      }
+
       ws.send(JSON.stringify({ type: "error", error: "Unknown message type" }));
     } catch (err) {
       console.error("WebSocket error:", err);
@@ -129,4 +138,3 @@ export class WebSocketHandler {
     }
   }
 }
-
