@@ -101,8 +101,6 @@ Do NOT use plain paragraphs for activities—always use bullet lists.
 - \`#### Accommodation\` — hotel details or \`- [ ] Book hotel\` if unknown
 - \`#### Tickets & Reservations\` — bookings for that day, or "No reservations needed"
 
-**Images:** Include 2-3 images per day showing key locations. Use stable public URLs (Wikimedia/Wikipedia preferred).
-
 **Destinations section:** For multi-destination trips, maintain a \`## Destinations\` section with an ordered bullet list:
 \`\`\`markdown
 ## Destinations

@@ -34,17 +34,6 @@ Key points:
 - Use Google Maps for locations, official websites for attractions
 - Format: `[Location](https://www.google.com/maps/search/?api=1&query=Location+City)`
 
-## Images
-
-Include 2-3 images per day showing key locations/activities. Use stable public URLs (Wikimedia/Wikipedia preferred):
-
-```markdown
-![Kahului Airport](https://upload.wikimedia.org/wikipedia/commons/...)
-![Wailea Beach sunset](https://upload.wikimedia.org/wikipedia/commons/...)
-```
-
-Images can be placed at the top of the day section or inline near relevant activities.
-
 ## Trip map
 
 For multi-destination trips (2+ stops), maintain a `## Destinations` section with an ordered bullet list using `-` (no numbering, no checkboxes). This list is used to generate the trip map. Use the `generate_trip_map` tool to create or refresh the map, which will insert a `![Trip map](...)` image into the itinerary.
@@ -127,9 +116,6 @@ If no reservations needed:
 
 <details open>
 <summary><strong>Day 1 — Saturday, April 5: Arrival & Settling In</strong></summary>
-
-![Kahului Airport](https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Kahului_Airport_Terminal.jpg/1200px-Kahului_Airport_Terminal.jpg)
-![Wailea Beach](https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Wailea_Beach%2C_Maui.jpg/1200px-Wailea_Beach%2C_Maui.jpg)
 
 #### Morning/Afternoon
 
