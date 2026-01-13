@@ -14,6 +14,9 @@ export function createTripTools(tripId: string) {
   const contextUpdateSchema = {
     content: z.any().describe("Full context markdown content"),
   };
+  const globalContextUpdateSchema = {
+    content: z.any().describe("Full global context markdown content"),
+  };
   const toggleTodoSchema = {
     lineNumber: z.number().describe("1-based line number"),
   };
@@ -54,93 +57,128 @@ export function createTripTools(tripId: string) {
   };
 
   return [
-  tool(
-    "read_itinerary",
-    "Read the itinerary markdown for the current trip",
-    noParams,
-    async () => {
-      const result = await storage.readItinerary(normalizedTripId);
-      return {
-        content: [{ type: "text", text: result }],
-      };
-    },
-  ),
-  tool(
-    "update_itinerary",
-    "Replace the itinerary markdown for the current trip (requires full markdown in content)",
-    itineraryUpdateSchema,
-    async (input, extra) => {
-      let resolved = resolveContent(input ?? {});
-      if (!resolved.ok && extra && typeof extra === "object") {
-        const candidate = (extra as Record<string, any>)?.request?.params?.arguments;
-        if (candidate) {
-          resolved = resolveContent(candidate);
-        }
-      }
-      if (!resolved.ok) {
+    tool(
+      "read_itinerary",
+      "Read the itinerary markdown for the current trip",
+      noParams,
+      async () => {
+        const result = await storage.readItinerary(normalizedTripId);
         return {
-          content: [{ type: "text", text: resolved.error }],
-          isError: true,
+          content: [{ type: "text", text: result }],
         };
-      }
-      await storage.writeItinerary(normalizedTripId, resolved.content);
-      return {
-        content: [{ type: "text", text: `Updated itinerary for ${normalizedTripId}` }],
-      };
-    },
-  ),
-  tool(
-    "read_context",
-    "Read the trip context markdown for the current trip",
-    noParams,
-    async () => {
-      const result = await storage.readContext(normalizedTripId);
-      return {
-        content: [{ type: "text", text: result }],
-      };
-    },
-  ),
-  tool(
-    "update_context",
-    "Replace the trip context markdown for the current trip (requires full markdown in content)",
-    contextUpdateSchema,
-    async (input, extra) => {
-      let resolved = resolveContent(input ?? {});
-      if (!resolved.ok && extra && typeof extra === "object") {
-        const candidate = (extra as Record<string, any>)?.request?.params?.arguments;
-        if (candidate) {
-          resolved = resolveContent(candidate);
+      },
+    ),
+    tool(
+      "update_itinerary",
+      "Replace the itinerary markdown for the current trip (requires full markdown in content)",
+      itineraryUpdateSchema,
+      async (input, extra) => {
+        let resolved = resolveContent(input ?? {});
+        if (!resolved.ok && extra && typeof extra === "object") {
+          const candidate = (extra as Record<string, any>)?.request?.params?.arguments;
+          if (candidate) {
+            resolved = resolveContent(candidate);
+          }
         }
-      }
-      if (!resolved.ok) {
+        if (!resolved.ok) {
+          return {
+            content: [{ type: "text", text: resolved.error }],
+            isError: true,
+          };
+        }
+        await storage.writeItinerary(normalizedTripId, resolved.content);
         return {
-          content: [{ type: "text", text: resolved.error }],
-          isError: true,
+          content: [{ type: "text", text: `Updated itinerary for ${normalizedTripId}` }],
         };
-      }
-      await storage.writeContext(normalizedTripId, resolved.content);
-      return {
-        content: [{ type: "text", text: `Updated context for ${normalizedTripId}` }],
-      };
-    },
-  ),
-  tool(
-    "toggle_todo",
-    "Toggle a TODO checkbox in the itinerary",
-    toggleTodoSchema,
-    async ({ lineNumber }) => {
-      const result = await storage.toggleTodoAtLine(normalizedTripId, lineNumber);
-      return {
-        content: [
-          {
-            type: "text",
-            text: result.updated
-              ? `Toggled TODO on line ${lineNumber}`
-              : `No TODO found on line ${lineNumber}`,
-          },
-        ],
-      };
-    },
-  ),
+      },
+    ),
+    tool(
+      "read_context",
+      "Read the trip context markdown for the current trip",
+      noParams,
+      async () => {
+        const result = await storage.readContext(normalizedTripId);
+        return {
+          content: [{ type: "text", text: result }],
+        };
+      },
+    ),
+    tool(
+      "read_global_context",
+      "Read the global travel profile markdown (shared across trips)",
+      noParams,
+      async () => {
+        const result = await storage.readGlobalContext();
+        return {
+          content: [{ type: "text", text: result }],
+        };
+      },
+    ),
+    tool(
+      "update_context",
+      "Replace the trip context markdown for the current trip (requires full markdown in content)",
+      contextUpdateSchema,
+      async (input, extra) => {
+        let resolved = resolveContent(input ?? {});
+        if (!resolved.ok && extra && typeof extra === "object") {
+          const candidate = (extra as Record<string, any>)?.request?.params?.arguments;
+          if (candidate) {
+            resolved = resolveContent(candidate);
+          }
+        }
+        if (!resolved.ok) {
+          return {
+            content: [{ type: "text", text: resolved.error }],
+            isError: true,
+          };
+        }
+        await storage.writeContext(normalizedTripId, resolved.content);
+        return {
+          content: [{ type: "text", text: `Updated context for ${normalizedTripId}` }],
+        };
+      },
+    ),
+    tool(
+      "update_global_context",
+      "Replace the global travel profile markdown (shared across trips; requires full markdown in content)",
+      globalContextUpdateSchema,
+      async (input, extra) => {
+        let resolved = resolveContent(input ?? {});
+        if (!resolved.ok && extra && typeof extra === "object") {
+          const candidate = (extra as Record<string, any>)?.request?.params?.arguments;
+          if (candidate) {
+            resolved = resolveContent(candidate);
+          }
+        }
+        if (!resolved.ok) {
+          return {
+            content: [{ type: "text", text: resolved.error }],
+            isError: true,
+          };
+        }
+        await storage.writeGlobalContext(resolved.content);
+        return {
+          content: [{ type: "text", text: "Updated global travel profile" }],
+        };
+      },
+    ),
+    tool(
+      "toggle_todo",
+      "Toggle a TODO checkbox in the itinerary",
+      toggleTodoSchema,
+      async ({ lineNumber }) => {
+        const result = await storage.toggleTodoAtLine(normalizedTripId, lineNumber);
+        return {
+          content: [
+            {
+              type: "text",
+              text: result.updated
+                ? `Toggled TODO on line ${lineNumber}`
+                : `No TODO found on line ${lineNumber}`,
+            },
+          ],
+        };
+      },
+    ),
   ];
 }

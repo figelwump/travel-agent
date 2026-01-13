@@ -36,12 +36,12 @@ afterEach(async () => {
 });
 
 describe("storage", () => {
-  test("createTrip seeds itinerary and context", async () => {
+  test("createTrip seeds context but not itinerary", async () => {
     const trip = await storage.createTrip("Test Trip");
     const itinerary = await storage.readItinerary(trip.id);
     const context = await storage.readContext(trip.id);
 
-    expect(itinerary).toContain("# Test Trip — Itinerary");
+    expect(itinerary).toBe("");
     expect(context).toContain("# Trip Context");
   });
 
@@ -62,6 +62,11 @@ describe("storage", () => {
     expect(secondToggle.updated).toBe(true);
     expect(secondToggle.content).toContain("- [ ] Confirm hotel");
   });
+
+  test("readGlobalContext seeds a global profile", async () => {
+    const globalContext = await storage.readGlobalContext();
+    expect(globalContext).toContain("# Global Travel Profile");
+  });
 });
 
 describe("api itinerary", () => {
@@ -71,7 +76,7 @@ describe("api itinerary", () => {
 
     let res = await apiCall(itineraryUrl);
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain("API Trip");
+    expect(await res.text()).toBe("");
 
     const updated = "# API Trip — Itinerary\n\n## Notes\n- Book Art Deco walking tour";
     res = await apiCall(itineraryUrl, {
@@ -169,5 +174,29 @@ describe("mcp trip tools", () => {
 
     expect(result.content?.[0]?.text).toContain("Read MCP Trip — Itinerary");
     expect(result.content?.[0]?.text).toContain("Sample note");
+  });
+
+  test("update_global_context tool writes global profile", async () => {
+    const trip = await storage.createTrip("Global MCP Trip");
+    const mcpServer = createSdkMcpServer({ name: "t", tools: createTripTools(trip.id) });
+    const server = (mcpServer as any).instance;
+    const callHandler = server?.server?._requestHandlers?.get("tools/call");
+
+    const updated = "# Global Travel Profile\n\n- Kids: 2\n- Ages: 7, 10\n";
+    const result = await callHandler(
+      {
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: {
+          name: "update_global_context",
+          arguments: { content: updated },
+        },
+      },
+      {}
+    );
+
+    expect(result.content?.[0]?.text).toContain("Updated global travel profile");
+    expect(await storage.readGlobalContext()).toBe(updated);
   });
 });

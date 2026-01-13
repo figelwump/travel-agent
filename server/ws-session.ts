@@ -8,14 +8,20 @@ import { logTs } from "./log";
 
 function createTripMcpServer(
   tripId: string,
-  options?: { includeReadItinerary?: boolean; includeReadContext?: boolean },
+  options?: {
+    includeReadItinerary?: boolean;
+    includeReadContext?: boolean;
+    includeReadGlobalContext?: boolean;
+  },
 ) {
   // Short name "t" to keep tool name prefixes short
   const includeReadItinerary = options?.includeReadItinerary ?? true;
   const includeReadContext = options?.includeReadContext ?? true;
+  const includeReadGlobalContext = options?.includeReadGlobalContext ?? true;
   const tripTools = createTripTools(tripId).filter((tool) => {
     if (!includeReadItinerary && tool.name === "read_itinerary") return false;
     if (!includeReadContext && tool.name === "read_context") return false;
+    if (!includeReadGlobalContext && tool.name === "read_global_context") return false;
     return true;
   });
   return createSdkMcpServer({
@@ -29,6 +35,8 @@ const ALLOWED_TRIP_TOOLS = [
   "mcp__entity-tools__update_itinerary",
   "mcp__entity-tools__read_context",
   "mcp__entity-tools__update_context",
+  "mcp__entity-tools__read_global_context",
+  "mcp__entity-tools__update_global_context",
   "mcp__entity-tools__toggle_todo",
   "mcp__entity-tools__complete_task",
   "WebSearch",
@@ -54,17 +62,33 @@ function shouldAllowReadContext(message: string, contextTruncated: boolean): boo
     || /\bcurrent context\b/.test(normalized);
 }
 
-function selectAllowedTripTools(message: string, itineraryTruncated: boolean, contextTruncated: boolean): string[] {
+function shouldAllowReadGlobalContext(message: string, globalContextTruncated: boolean): boolean {
+  if (globalContextTruncated) return true;
+  const normalized = message.toLowerCase();
+  return /\b(read|show|view|review)\b.*\b(global context|profile|preferences)\b/.test(normalized)
+    || /\b(global context|profile|preferences)\b.*\b(read|show|view|review)\b/.test(normalized)
+    || /\bwhat(?:'s| is) in (?:my|the) global context\b/.test(normalized)
+    || /\btravel profile\b/.test(normalized);
+}
+
+function selectAllowedTripTools(
+  message: string,
+  itineraryTruncated: boolean,
+  contextTruncated: boolean,
+  globalContextTruncated: boolean,
+): string[] {
   const normalized = message.toLowerCase();
   const mentionsItinerary = /\b(itinerary|schedule|day\s+\d+)\b/.test(normalized);
   const mentionsContext = /\b(context|preferences?|bookings?|confirmations?)\b/.test(normalized);
   const allowReadItinerary = shouldAllowReadItinerary(message, itineraryTruncated);
   const allowReadContext = shouldAllowReadContext(message, contextTruncated);
+  const allowReadGlobalContext = shouldAllowReadGlobalContext(message, globalContextTruncated);
 
   return ALLOWED_TRIP_TOOLS.filter((tool) => {
     if (mentionsItinerary && !mentionsContext && tool === "mcp__entity-tools__update_context") return false;
     if (!allowReadItinerary && tool === "mcp__entity-tools__read_itinerary") return false;
     if (!allowReadContext && tool === "mcp__entity-tools__read_context") return false;
+    if (!allowReadGlobalContext && tool === "mcp__entity-tools__read_global_context") return false;
     return true;
   });
 }
@@ -239,28 +263,37 @@ export class ConversationSession {
     prompt: string;
     itineraryTruncated: boolean;
     contextTruncated: boolean;
+    globalContextTruncated: boolean;
     tripName: string;
     itinerarySnapshot: string;
     contextSnapshot: string;
+    globalContextSnapshot: string;
   }> {
     const trip = await storage.getTrip(this.tripId);
     const tripName = trip?.name ?? "Unnamed";
     const itinerary = await storage.readItinerary(this.tripId);
     const context = await storage.readContext(this.tripId);
+    const globalContext = await storage.readGlobalContext();
     const todoMatches = itinerary.match(/- \\[ \\]/g) || [];
     const doneMatches = itinerary.match(/- \\[x\\]/gi) || [];
     const itineraryTrimmed = itinerary.trim();
     const contextTrimmed = context.trim();
+    const globalContextTrimmed = globalContext.trim();
     const maxItineraryChars = 12000;
     const maxContextChars = 8000;
+    const maxGlobalContextChars = 8000;
     const itineraryTruncated = itineraryTrimmed.length > maxItineraryChars;
     const contextTruncated = contextTrimmed.length > maxContextChars;
+    const globalContextTruncated = globalContextTrimmed.length > maxGlobalContextChars;
     const itineraryInstruction = itineraryTruncated
       ? "The itinerary below is truncated. Call read_itinerary only if you need the full version."
       : "The full itinerary is provided below and has already been read. Do NOT call read_itinerary or mention reading it. Do not use filesystem tools to fetch it.";
     const contextInstruction = contextTruncated
       ? "The context below is truncated. Call read_context only if you need the full version."
       : "The full context is provided below. Do NOT call read_context or mention reading it.";
+    const globalContextInstruction = globalContextTruncated
+      ? "The global context below is truncated. Call read_global_context only if you need the full version."
+      : "The full global context is provided below. Do NOT call read_global_context or mention reading it.";
     const itinerarySnapshot = itineraryTrimmed
       ? itineraryTrimmed.length > maxItineraryChars
         ? `${itineraryTrimmed.slice(0, maxItineraryChars)}\n\n[Itinerary truncated; call read_itinerary for full details.]`
@@ -270,6 +303,11 @@ export class ConversationSession {
       ? contextTrimmed.length > maxContextChars
         ? `${contextTrimmed.slice(0, maxContextChars)}\n\n[Context truncated; call read_context for full details.]`
         : contextTrimmed
+      : "(empty)";
+    const globalContextSnapshot = globalContextTrimmed
+      ? globalContextTrimmed.length > maxGlobalContextChars
+        ? `${globalContextTrimmed.slice(0, maxGlobalContextChars)}\n\n[Global context truncated; call read_global_context for full details.]`
+        : globalContextTrimmed
       : "(empty)";
 
     const prompt = [
@@ -288,9 +326,13 @@ export class ConversationSession {
       itineraryInstruction,
       `The current context is included below.`,
       contextInstruction,
+      `The global context is included below.`,
+      globalContextInstruction,
+      `Trip-specific context overrides global context when they conflict.`,
       `Tool availability for this request:`,
       `- read_itinerary: ${itineraryTruncated ? "ENABLED (itinerary truncated)" : "DISABLED (full itinerary already provided)"}`,
       `- read_context: ${contextTruncated ? "ENABLED (context truncated)" : "DISABLED (full context already provided)"}`,
+      `- read_global_context: ${globalContextTruncated ? "ENABLED (global context truncated)" : "DISABLED (full global context already provided)"}`,
       `Do not call any tool marked DISABLED.`,
       ``,
       `---`,
@@ -300,15 +342,20 @@ export class ConversationSession {
       ``,
       `**Known Context:**`,
       contextSnapshot,
+      ``,
+      `**Global Context:**`,
+      globalContextSnapshot,
     ].join("\n");
 
     return {
       prompt,
       itineraryTruncated,
       contextTruncated,
+      globalContextTruncated,
       tripName,
       itinerarySnapshot,
       contextSnapshot,
+      globalContextSnapshot,
     };
   }
 
@@ -485,11 +532,17 @@ export class ConversationSession {
 
         const allowReadItinerary = shouldAllowReadItinerary(content, ctxPrompt.itineraryTruncated);
         const allowReadContext = shouldAllowReadContext(content, ctxPrompt.contextTruncated);
-        const allowedTools = selectAllowedTripTools(content, ctxPrompt.itineraryTruncated, ctxPrompt.contextTruncated);
+        const allowReadGlobalContext = shouldAllowReadGlobalContext(content, ctxPrompt.globalContextTruncated);
+        const allowedTools = selectAllowedTripTools(
+          content,
+          ctxPrompt.itineraryTruncated,
+          ctxPrompt.contextTruncated,
+          ctxPrompt.globalContextTruncated,
+        );
         const modelPrompt = [
           `Trip already selected: ${ctxPrompt.tripName} (${this.tripId}).`,
           `Do NOT ask which trip or offer to create a new trip.`,
-          `Use the itinerary and context below for this request.`,
+          `Use the itinerary, trip context, and global context below for this request.`,
           ``,
           `Current Itinerary:`,
           ctxPrompt.itinerarySnapshot,
@@ -497,13 +550,17 @@ export class ConversationSession {
           `Known Context:`,
           ctxPrompt.contextSnapshot,
           ``,
+          `Global Context:`,
+          ctxPrompt.globalContextSnapshot,
+          ``,
           `User request: ${content}`,
         ].join("\n");
-        const mcpServer = allowReadItinerary && allowReadContext
+        const mcpServer = allowReadItinerary && allowReadContext && allowReadGlobalContext
           ? this.mcpServer
           : createTripMcpServer(this.tripId, {
             includeReadItinerary: allowReadItinerary,
             includeReadContext: allowReadContext,
+            includeReadGlobalContext: allowReadGlobalContext,
           });
         this.activeAllowedTools = new Set(allowedTools);
         for await (const message of this.agentClient.queryStream(modelPrompt, {

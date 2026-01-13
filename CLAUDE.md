@@ -17,7 +17,7 @@ ANTHROPIC_API_KEY=sk-... DISABLE_AUTH=true bun run dev
 
 ## Testing Changes
 
-Always test bug fixes and feature work using the Playwright MCP before considering work complete. Verify changes both visually and functionally:
+Prefer validating bug fixes and feature work via the CLI session runner first. Only use the Playwright MCP when changes affect the UI or require browser-only verification. When you do use Playwright, verify changes both visually and functionally:
 
 1. Start the dev server if not already running
 2. Use `browser_navigate` to open `http://localhost:3000`
@@ -82,7 +82,7 @@ This is a personal travel planning agent with a Bun server backend and React fro
 - **agent-client.ts** - Wraps `@anthropic-ai/claude-agent-sdk` query function. Configures allowed tools, sandboxes file writes to `~/.travelagent/`, and appends the travel agent system prompt.
 - **system-prompt.ts** - Base system prompt for the sandboxed travel agent.
 
-The agent uses trip tools (`read_itinerary`, `update_itinerary`, `read_context`, `update_context`, `toggle_todo`) to work with trip data. These are custom tools defined in `server/tools/entity-tools.ts`.
+The agent uses trip tools (`read_itinerary`, `update_itinerary`, `read_context`, `update_context`, `read_global_context`, `update_global_context`, `toggle_todo`) to work with trip data. These are custom tools defined in `server/tools/entity-tools.ts`.
 
 ### Web Client (`web/`)
 
@@ -109,6 +109,11 @@ assets/                # Generated assets (itinerary-map.png/svg)
 chats/<conversationId>/
   conversation.json    # Metadata + SDK session ID for resume
   messages.jsonl       # Chat history
+```
+
+Global data stored at `~/.travelagent/`:
+```
+global-context.md      # Global travel profile shared across trips
 ```
 
 ## Environment Variables

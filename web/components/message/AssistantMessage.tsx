@@ -579,6 +579,9 @@ export function AssistantMessage({ message, isLastAndStillWorking }: AssistantMe
       case 'read_context':
       case 'update_context':
         return 'Context';
+      case 'read_global_context':
+      case 'update_global_context':
+        return 'Global context';
       case 'toggle_todo':
         return input.lineNumber ? `Line ${input.lineNumber}` : 'Toggle checkbox';
       case 'complete_task':

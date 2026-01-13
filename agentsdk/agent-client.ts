@@ -68,6 +68,7 @@ export class AgentClient {
         // Trip tools (MCP server "entity-tools" prefixes them with mcp__entity-tools__)
         "mcp__entity-tools__read_itinerary", "mcp__entity-tools__update_itinerary",
         "mcp__entity-tools__read_context", "mcp__entity-tools__update_context",
+        "mcp__entity-tools__read_global_context", "mcp__entity-tools__update_global_context",
         "mcp__entity-tools__toggle_todo", "mcp__entity-tools__complete_task",
       ],
       tools: ["WebFetch", "WebSearch", "Skill"],

@@ -64,6 +64,10 @@ function contextPath(tripId: string): string {
   return path.join(tripDir(tripId), "context.md");
 }
 
+function globalContextPath(): string {
+  return path.join(travelAgentHome(), "global-context.md");
+}
+
 function conversationsRoot(tripId: string): string {
   return path.join(tripDir(tripId), "chats");
 }
@@ -134,8 +138,7 @@ export async function createTrip(name: string): Promise<Trip> {
   const trip: Trip = { id, name: tripName, createdAt: t, updatedAt: t };
   await writeFileAtomic(tripMetaPath(id), JSON.stringify(trip, null, 2));
 
-  // Seed itinerary + context
-  await ensureItinerary(id, tripName);
+  // Seed context
   await ensureContext(id);
 
   // Seed a default conversation
@@ -292,6 +295,42 @@ export async function ensureContext(tripId: string): Promise<void> {
   }
 }
 
+export async function ensureGlobalContext(): Promise<void> {
+  try {
+    await fs.access(globalContextPath());
+  } catch (err: any) {
+    if (err?.code !== "ENOENT") throw err;
+    const template = [
+      "# Global Travel Profile",
+      "",
+      "## Travelers",
+      "- Adults: TBD",
+      "- Kids: TBD",
+      "- Kids ages: TBD",
+      "",
+      "## Preferences",
+      "- Pace: TBD",
+      "- Interests: TBD",
+      "- Lodging: TBD",
+      "- Dining: TBD",
+      "- Accessibility: TBD",
+      "",
+      "## Constraints",
+      "- Budget: TBD",
+      "- Loyalty programs: TBD",
+      "- Airlines: TBD",
+      "",
+      "## Notes",
+      "- TBD",
+      "",
+      "## Last Updated",
+      nowIso(),
+      "",
+    ].join("\n");
+    await writeFileAtomic(globalContextPath(), template);
+  }
+}
+
 export async function readContext(tripId: string): Promise<string> {
   await ensureContext(tripId);
   try {
@@ -305,6 +344,20 @@ export async function readContext(tripId: string): Promise<string> {
 export async function writeContext(tripId: string, content: string): Promise<void> {
   await writeFileAtomic(contextPath(tripId), content);
   await touchTrip(tripId);
+}
+
+export async function readGlobalContext(): Promise<string> {
+  await ensureGlobalContext();
+  try {
+    return await fs.readFile(globalContextPath(), "utf8");
+  } catch (err: any) {
+    if (err?.code === "ENOENT") return "";
+    throw err;
+  }
+}
+
+export async function writeGlobalContext(content: string): Promise<void> {
+  await writeFileAtomic(globalContextPath(), content);
 }
 
 export async function listConversations(tripId: string): Promise<Conversation[]> {
