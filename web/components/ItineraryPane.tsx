@@ -84,6 +84,56 @@ function preprocessDetailsContent(md: string): string {
   );
 }
 
+function normalizeDaySections(md: string): string {
+  const lines = md.split('\n');
+  const out: string[] = [];
+  let inAutoDetails = false;
+  let manualDetailsDepth = 0;
+  let dayHeadingLevel: number | null = null;
+  const dayHeadingRegex = /^(#{2,6})\s+(Day\s+\d+\b.*)$/i;
+  const headingRegex = /^(#{1,6})\s+/;
+  const detailsOpenRegex = /<details\b[^>]*>/i;
+  const detailsCloseRegex = /<\/details>/i;
+
+  const closeAutoDetails = () => {
+    if (!inAutoDetails) return;
+    out.push('</details>');
+    if (out[out.length - 1] !== '') out.push('');
+    inAutoDetails = false;
+    dayHeadingLevel = null;
+  };
+
+  for (const line of lines) {
+    if (detailsCloseRegex.test(line) && manualDetailsDepth > 0) manualDetailsDepth -= 1;
+    if (detailsOpenRegex.test(line)) manualDetailsDepth += 1;
+
+    const dayHeadingMatch = line.match(dayHeadingRegex);
+    if (dayHeadingMatch && manualDetailsDepth === 0) {
+      closeAutoDetails();
+      inAutoDetails = true;
+      dayHeadingLevel = dayHeadingMatch[1].length;
+      out.push('<details open>');
+      out.push(`<summary><strong>${dayHeadingMatch[2].trim()}</strong></summary>`);
+      continue;
+    }
+
+    if (inAutoDetails) {
+      const headingMatch = line.match(headingRegex);
+      if (headingMatch && dayHeadingLevel !== null && headingMatch[1].length <= dayHeadingLevel) {
+        closeAutoDetails();
+      }
+    }
+
+    const outputLine = inAutoDetails
+      ? line.replace(/^(\s*)[-*+]\s+\[[ xX]\]\s+/, '$1- ')
+      : line;
+    out.push(outputLine);
+  }
+
+  closeAutoDetails();
+  return out.join('\n');
+}
+
 type Credentials = { password: string };
 
 function authHeader(credentials: Credentials | null): string | null {
@@ -294,7 +344,7 @@ export function ItineraryPane({
   // Pre-process markdown to handle content inside <details> tags
   const processedMarkdown = useMemo(() => {
     if (!markdown) return '';
-    return preprocessDetailsContent(markdown);
+    return preprocessDetailsContent(normalizeDaySections(markdown));
   }, [markdown]);
 
   const renderHeading = (level: 1 | 2 | 3 | 4 | 5 | 6) => {
