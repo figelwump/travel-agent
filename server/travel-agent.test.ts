@@ -253,7 +253,7 @@ describe("mcp trip tools", () => {
           method: "tools/call",
           params: {
             name: "generate_trip_map",
-            arguments: {},
+            arguments: { destinations: ["Tokyo", "Kyoto", "Osaka"] },
           },
         },
         {}

@@ -205,7 +205,12 @@ export async function handleApiRequest(req: Request, url: URL, ctx?: HeaderCtx):
   // generate map
   if (segments[3] === "generate-map" && segments.length === 4 && req.method === "POST") {
     const body = await parseJson(req);
-    const destinations = Array.isArray(body?.destinations) ? body.destinations.filter((d: any) => typeof d === "string") : [];
+    const destinations = Array.isArray(body?.destinations)
+      ? body.destinations.filter((d: any) => typeof d === "string")
+      : [];
+    if (destinations.length === 0) {
+      return badRequest("No destinations provided. Ask the agent to generate a map from the itinerary.", ctx);
+    }
     const { assetUrl } = await storage.generateTripMap(tripId, destinations);
     await storage.ensureMapReferencedInItinerary(tripId, assetUrl);
     return jsonResponse({ assetUrl }, 200, ctx);

@@ -180,6 +180,7 @@ interface ItineraryPaneProps {
   credentials: Credentials | null;
   markdown: string;
   onRefresh: () => void;
+  onRequestMap?: () => void;
   onDeleteTrip?: () => Promise<void> | void;
   onCollapse?: () => void;
   tripCreatedAt?: string | null;
@@ -201,29 +202,12 @@ function withAuthToken(url: string, credentials: Credentials | null): string {
   }
 }
 
-function extractDestinationsFromMarkdown(md: string): string[] {
-  const lines = md.split('\n');
-  const idx = lines.findIndex(l => /^##\s+Destinations\s*$/i.test(l.trim()));
-  if (idx === -1) return [];
-  const out: string[] = [];
-  for (let i = idx + 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (/^#{1,6}\s+/.test(line)) break;
-    const m = line.match(/^-+\s+(?!\[[ xX]\]\s*)(.+)$/);
-    if (!m) continue;
-    const item = m[1].trim();
-    if (!item) continue;
-    out.push(item.replace(/\s+\[[^\]]+\]\s*$/, ''));
-  }
-  // De-dupe while preserving order.
-  return Array.from(new Set(out)).slice(0, 12);
-}
-
 export function ItineraryPane({
   tripId,
   credentials,
   markdown,
   onRefresh,
+  onRequestMap,
   onDeleteTrip,
   onCollapse,
   tripCreatedAt,
@@ -234,7 +218,6 @@ export function ItineraryPane({
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(markdown);
   const [isSaving, setIsSaving] = useState(false);
-  const [isGeneratingMap, setIsGeneratingMap] = useState(false);
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     []
@@ -309,33 +292,8 @@ export function ItineraryPane({
   };
 
   const handleGenerateMap = async () => {
-    if (!tripId || !credentials) return;
-    const extracted = extractDestinationsFromMarkdown(markdown);
-    const destinations = extracted.length > 0
-      ? extracted
-      : (prompt('Destinations in order (comma-separated):') || '')
-          .split(',')
-          .map(s => s.trim())
-          .filter(Boolean)
-          .slice(0, 12);
-    if (destinations.length === 0) return;
-
-    setIsGeneratingMap(true);
-    const auth = authHeader(credentials);
-    const res = await fetch(`/api/trips/${tripId}/generate-map`, {
-      method: 'POST',
-      headers: {
-        ...(auth ? { Authorization: auth } : {}),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ destinations }),
-    });
-    setIsGeneratingMap(false);
-    if (!res.ok) {
-      alert(`Generate map failed: ${await res.text().catch(() => res.statusText)}`);
-      return;
-    }
-    onRefresh();
+    if (!onRequestMap) return;
+    onRequestMap();
   };
 
   const sanitizeSchema = useMemo(() => {
@@ -448,7 +406,7 @@ export function ItineraryPane({
             type="button"
             className="icon-btn"
             onClick={handleGenerateMap}
-            disabled={!canInteract || isSaving || isGeneratingMap}
+            disabled={!canInteract || isSaving || !onRequestMap}
             title="Generate map"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

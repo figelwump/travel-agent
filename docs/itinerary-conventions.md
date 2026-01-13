@@ -48,7 +48,7 @@ Images can be placed at the top of the day section or inline near relevant activ
 ## Trip map
 
 For multi-destination trips (2+ stops), maintain a `## Destinations` section with an ordered bullet list using `-` (no numbering, no checkboxes). This list is used to generate the trip map. Use the `generate_trip_map` tool to create or refresh the map, which will insert a `![Trip map](...)` image into the itinerary.
-Do not manually add a trip map image or section; the tool inserts the canonical map line.
+The agent should infer the ordered list from the itinerary (prefer the Destinations section) and ask the user if the route is unclear. Do not manually add a trip map image or section; the tool inserts the canonical map line.
 
 Example:
 

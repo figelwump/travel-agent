@@ -814,6 +814,30 @@ const App: React.FC = () => {
     setMessages([]);
   };
 
+  const handleStartConversationWithPrompt = async (prompt: string, title?: string) => {
+    if (!activeTripId) return;
+    const res = await apiFetch<Conversation>(
+      `/api/trips/${activeTripId}/conversations`,
+      { method: 'POST', body: JSON.stringify(title ? { title } : {}) },
+      credentials
+    );
+    if (!res.ok) {
+      alert(`Failed to start chat: ${res.error}`);
+      return;
+    }
+    await refreshConversations(activeTripId);
+    setActiveConversationId(res.data.id);
+    streamingMessageIdRef.current = null;
+    toolActivityMessageIdRef.current = null;
+    toolUseToMessageRef.current = {};
+    queryInProgressRef.current = true;
+    setIsLoading(true);
+    const timestamp = new Date().toISOString();
+    const userMessage: Message = { id: Date.now().toString(), type: 'user', content: prompt, timestamp };
+    setMessages([userMessage]);
+    sendMessage({ type: 'chat', tripId: activeTripId, conversationId: res.data.id, content: prompt });
+  };
+
   const handleSendUserText = (text: string) => {
     if (!activeTripId || !activeConversationId) return;
     queryInProgressRef.current = true;
@@ -825,6 +849,9 @@ const App: React.FC = () => {
     setIsLoading(true);
     sendMessage({ type: 'chat', tripId: activeTripId, conversationId: activeConversationId, content: text });
   };
+
+  const mapRequestPrompt =
+    "Generate a trip map for my itinerary route. Use the current itinerary to determine the ordered destinations. If the route is unclear, ask me for the ordered list.";
 
   const handleCancelResponse = () => {
     if (!activeTripId || !activeConversationId) return;
@@ -1039,6 +1066,7 @@ const App: React.FC = () => {
                 credentials={credentials}
                 markdown={itineraryMarkdown}
                 onRefresh={refreshItinerary}
+                onRequestMap={activeTripId ? () => handleStartConversationWithPrompt(mapRequestPrompt, 'Trip map') : undefined}
                 onDeleteTrip={handleDeleteTrip}
                 onCollapse={() => setShowItinerary(false)}
                 tripCreatedAt={activeTrip?.createdAt ?? null}

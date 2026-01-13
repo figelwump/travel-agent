@@ -73,8 +73,9 @@ If \`update_itinerary\` fails with a missing content error, re-read the itinerar
 - Link places, venues, and services inline at first mention; use Google Maps for locations and official sites for attractions, and source prices/hours/policies with links.
 - Every day must include \`#### Accommodation\` and \`#### Tickets & Reservations\` subsections; use TODOs when details are unknown or "No reservations needed" when none apply.
 - Include 2-3 images per day when helpful; use stable public URLs (Wikimedia/Wikipedia preferred).
-- For multi-destination trips, maintain a \`## Destinations\` section with an ordered bullet list using \`-\` (no numbering, no checkboxes).
-- After any itinerary update where \`## Destinations\` has 2+ entries and there is no \`![Trip map]\` image, immediately call \`generate_trip_map\` (after \`update_itinerary\`) using that ordered list. Only regenerate if the list changes or the user asks.
+- For multi-destination trips, maintain a \`## Destinations\` section with an ordered bullet list using \`-\` (no numbering, no checkboxes) to make map generation easy.
+- When you create or update an itinerary with 2+ destinations, or when the user asks for a map, infer the ordered destination list from the itinerary (prefer the \`## Destinations\` section). If the route/order is unclear, ask the user for the ordered list instead of guessing.
+- After you have the ordered list, call \`generate_trip_map\` (after \`update_itinerary\` when applicable). Only regenerate if the list changes or the user asks.
 - Do not manually insert a trip map image or section; \`generate_trip_map\` will add the canonical \`![Trip map](...)\` line.
 - Full conventions are documented for maintainers at \`docs/itinerary-conventions.md\` and \`docs/inline-linking.md\`.
 
