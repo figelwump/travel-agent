@@ -1,5 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { HookJSONOutput, SettingSource, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { HookJSONOutput, SettingSource, SDKMessage, SDKUserMessage, AgentDefinition } from "@anthropic-ai/claude-agent-sdk";
 import * as path from "path";
 import { SANDBOX_SYSTEM_PROMPT } from "./system-prompt";
 
@@ -36,6 +36,7 @@ function buildVenvEnv(baseEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 
 export interface AgentQueryOptions {
   maxTurns?: number;
+  maxThinkingTokens?: number;
   cwd?: string;
   model?: string;
   includePartialMessages?: boolean;
@@ -51,6 +52,7 @@ export interface AgentQueryOptions {
   resume?: string;
   stderr?: (msg: string) => void;
   abortController?: AbortController;
+  agents?: Record<string, AgentDefinition>;
 }
 
 export class AgentClient {
@@ -66,15 +68,34 @@ export class AgentClient {
       maxThinkingTokens: 10000,
       includePartialMessages: true,
       allowedTools: [
-        "WebFetch", "WebSearch", "Skill",
+        "Task", "WebFetch", "WebSearch", "Skill",
         // Trip tools (MCP server "entity-tools" prefixes them with mcp__entity-tools__)
         "mcp__entity-tools__read_itinerary", "mcp__entity-tools__update_itinerary",
         "mcp__entity-tools__generate_trip_map",
         "mcp__entity-tools__read_context", "mcp__entity-tools__update_context",
         "mcp__entity-tools__read_global_context", "mcp__entity-tools__update_global_context",
-        "mcp__entity-tools__toggle_todo", "mcp__entity-tools__complete_task",
+        "mcp__entity-tools__toggle_todo",
       ],
-      tools: ["WebFetch", "WebSearch", "Skill"],
+      tools: ["Task", "WebFetch", "WebSearch", "Skill"],
+      agents: {
+        research: {
+          description: "Research venues, verify hours/prices, find official websites and booking links. Use for batch lookups of multiple venues.",
+          prompt: `You are a travel research assistant. Your job is to verify information about venues, attractions, restaurants, and services.
+
+For each item you research:
+1. Find the official website
+2. Verify current hours of operation
+3. Find current pricing (admission, tickets, etc.)
+4. Note any booking requirements or recommendations
+5. Get the Google Maps link
+
+Return your findings in a structured format that can be easily incorporated into an itinerary. Include source links for all facts.
+
+If you cannot verify something, say so clearly rather than guessing.`,
+          tools: ["WebSearch", "WebFetch"],
+          model: "haiku",
+        },
+      },
       appendSystemPrompt: SANDBOX_SYSTEM_PROMPT,
       settingSources: ["project"], // Avoid user-level plugins/tools (e.g., browser MCP)
       stderr: (msg: string) => console.error("[claude-sdk]", msg.trim()),

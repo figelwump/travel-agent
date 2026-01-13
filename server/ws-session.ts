@@ -3,7 +3,7 @@ import { AgentClient } from "../agentsdk/agent-client";
 import { createSdkMcpServer, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import * as storage from "./storage";
 import * as fs from "fs/promises";
-import { createTripTools, completionTools } from "./tools";
+import { createTripTools } from "./tools";
 import { logTs } from "./log";
 
 function createTripMcpServer(
@@ -26,11 +26,12 @@ function createTripMcpServer(
   });
   return createSdkMcpServer({
     name: "t",
-    tools: [...tripTools, ...completionTools],
+    tools: tripTools,
   });
 }
 
 const ALLOWED_TRIP_TOOLS = [
+  "Task",
   "mcp__entity-tools__read_itinerary",
   "mcp__entity-tools__update_itinerary",
   "mcp__entity-tools__generate_trip_map",
@@ -39,7 +40,6 @@ const ALLOWED_TRIP_TOOLS = [
   "mcp__entity-tools__read_global_context",
   "mcp__entity-tools__update_global_context",
   "mcp__entity-tools__toggle_todo",
-  "mcp__entity-tools__complete_task",
   "WebSearch",
   "WebFetch",
   "Skill",

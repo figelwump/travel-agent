@@ -584,8 +584,6 @@ export function AssistantMessage({ message, isLastAndStillWorking }: AssistantMe
         return 'Global context';
       case 'toggle_todo':
         return input.lineNumber ? `Line ${input.lineNumber}` : 'Toggle checkbox';
-      case 'complete_task':
-        return input.summary ? truncate(String(input.summary), 50) : 'Task complete';
       default:
         return 'Working...';
     }

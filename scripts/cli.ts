@@ -11,6 +11,7 @@ type SessionInput = { turns: SessionTurn[] };
 
 type TranscriptEvent = Record<string, unknown> & { type: string; timestamp: string };
 type ResolvedTrip = { trip: Trip; created: boolean };
+type CliArgs = { _: string[]; [key: string]: string | boolean | string[] | undefined };
 
 const DEFAULT_BASE_URL = process.env.TRAVEL_AGENT_URL || "http://localhost:3000";
 const DEFAULT_PASSWORD = process.env.TRAVEL_AGENT_PASSWORD || "";
@@ -43,8 +44,8 @@ function authHeader(password: string): string | null {
   return `Basic ${base64(`user:${password}`)}`;
 }
 
-function parseArgs(argv: string[]): { _: string[]; [key: string]: string | boolean | undefined } {
-  const out: { _: string[]; [key: string]: string | boolean | undefined } = { _: [] };
+function parseArgs(argv: string[]): CliArgs {
+  const out: CliArgs = { _: [] };
   let i = 0;
   while (i < argv.length) {
     const arg = argv[i];
@@ -75,7 +76,7 @@ function parseArgs(argv: string[]): { _: string[]; [key: string]: string | boole
 }
 
 function flagEnabled(
-  args: Record<string, string | boolean | undefined>,
+  args: CliArgs,
   name: string,
   defaultValue: boolean,
 ): boolean {
@@ -83,6 +84,7 @@ function flagEnabled(
   const value = args[name];
   if (value === undefined) return defaultValue;
   if (value === true) return true;
+  if (Array.isArray(value)) return defaultValue;
   if (typeof value === "string") {
     const normalized = value.toLowerCase();
     if (normalized === "false" || normalized === "0" || normalized === "no") return false;
@@ -129,7 +131,7 @@ async function deleteTrip(baseUrl: string, password: string, tripId: string): Pr
   await apiFetch(baseUrl, password, `/api/trips/${tripId}`, { method: "DELETE" });
 }
 
-async function listTripsCommand(args: Record<string, string | boolean | undefined>): Promise<void> {
+async function listTripsCommand(args: CliArgs): Promise<void> {
   const baseUrl = typeof args.url === "string" ? args.url : DEFAULT_BASE_URL;
   const password = typeof args.auth === "string" ? args.auth : DEFAULT_PASSWORD;
   const trips = await listTrips(baseUrl, password);
@@ -190,7 +192,7 @@ function normalizeTurnsFromArray(items: unknown[]): SessionTurn[] {
 async function resolveExistingTrip(
   baseUrl: string,
   password: string,
-  args: Record<string, string | boolean | undefined>,
+  args: CliArgs,
   rest: string[],
 ): Promise<Trip> {
   const tripId = typeof args["trip-id"] === "string" ? args["trip-id"] : rest[0];
@@ -199,7 +201,7 @@ async function resolveExistingTrip(
   return resolved.trip;
 }
 
-async function deleteTripCommand(args: Record<string, string | boolean | undefined>, rest: string[]): Promise<void> {
+async function deleteTripCommand(args: CliArgs, rest: string[]): Promise<void> {
   const baseUrl = typeof args.url === "string" ? args.url : DEFAULT_BASE_URL;
   const password = typeof args.auth === "string" ? args.auth : DEFAULT_PASSWORD;
   const trip = await resolveExistingTrip(baseUrl, password, args, rest);
@@ -207,7 +209,7 @@ async function deleteTripCommand(args: Record<string, string | boolean | undefin
   emitJsonLine({ type: "trip_deleted", tripId: trip.id, name: trip.name });
 }
 
-async function listConversationsCommand(args: Record<string, string | boolean | undefined>, rest: string[]): Promise<void> {
+async function listConversationsCommand(args: CliArgs, rest: string[]): Promise<void> {
   const baseUrl = typeof args.url === "string" ? args.url : DEFAULT_BASE_URL;
   const password = typeof args.auth === "string" ? args.auth : DEFAULT_PASSWORD;
   const trip = await resolveExistingTrip(baseUrl, password, args, rest);
@@ -216,7 +218,7 @@ async function listConversationsCommand(args: Record<string, string | boolean | 
 }
 
 async function deleteConversationCommand(
-  args: Record<string, string | boolean | undefined>,
+  args: CliArgs,
   rest: string[],
 ): Promise<void> {
   const baseUrl = typeof args.url === "string" ? args.url : DEFAULT_BASE_URL;
@@ -515,7 +517,7 @@ async function connectSessionClient(
   });
 }
 
-async function runSession(args: Record<string, string | boolean | undefined>): Promise<void> {
+async function runSession(args: CliArgs): Promise<void> {
   const baseUrl = typeof args.url === "string" ? args.url : DEFAULT_BASE_URL;
   const password = typeof args.auth === "string" ? args.auth : DEFAULT_PASSWORD;
   const wsUrl = typeof args.ws === "string" ? args.ws : toWsUrl(baseUrl);
@@ -620,7 +622,7 @@ async function promptLine(rl: readline.Interface, prompt: string): Promise<strin
   });
 }
 
-async function replSession(args: Record<string, string | boolean | undefined>): Promise<void> {
+async function replSession(args: CliArgs): Promise<void> {
   const baseUrl = typeof args.url === "string" ? args.url : DEFAULT_BASE_URL;
   const password = typeof args.auth === "string" ? args.auth : DEFAULT_PASSWORD;
   const wsUrl = typeof args.ws === "string" ? args.ws : toWsUrl(baseUrl);
