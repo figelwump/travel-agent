@@ -104,13 +104,40 @@ If dates are unclear, use \`TBD\`. This gives users a quick overview of where th
 - Pick up rental car
 - Drive to [Wailea](https://www.google.com/maps/search/?api=1&query=Wailea+Maui+Hawaii)
 \`\`\`
-Do NOT use plain paragraphs for activities—always use bullet lists.
+Do NOT use plain paragraphs or checkboxes for activities—always use bullet lists. Checkboxes are only for true action items (bookings/confirmations), not scheduled activities.
+Avoid generic \`#### Activities\` headings. Use time-of-day headers like \`#### Morning\`, \`#### Afternoon\`, \`#### Evening\`, or \`#### Morning/Afternoon\` even if there is only one block.
+
+If you need sub-items (e.g., a light stroll list), use nested bullets:
+\`\`\`markdown
+#### Afternoon
+
+- Light stroll:
+  - [Harpa Concert Hall](https://www.google.com/maps/search/?api=1&query=Harpa+Concert+Hall+Reykjavik) (exterior)
+  - [Sun Voyager sculpture](https://www.google.com/maps/search/?api=1&query=Sun+Voyager+Reykjavik)
+  - [Laugavegur](https://www.google.com/maps/search/?api=1&query=Laugavegur+Reykjavik) shopping street
+\`\`\`
 
 **TODOs:** Reserve \`- [ ]\` checkboxes only for true action items (bookings, confirmations, unknowns to research). Use plain bullets for scheduled activities.
 
 **Required subsections:** Every day must include (in this order):
 - \`#### Tickets & Reservations\` — bookings for that day, or "No reservations needed"
 - \`#### Accommodations\` — lodging for that night with address/phone/confirmation/check-in details when known, or \`- [ ] Book hotel\` if unknown
+
+**Formatting for Tickets & Reservations / Accommodations:** Do NOT use markdown tables in day sections. Use bullets with bold labels for readable, consistent formatting.
+\`\`\`markdown
+#### Tickets & Reservations
+
+- **Flights:** Booked — arrive [Keflavik Airport (KEF)](https://www.google.com/maps/search/?api=1&query=Keflavik+Airport+KEF) Jul 15
+- [ ] Book rental car pickup at [KEF](https://www.google.com/maps/search/?api=1&query=Keflavik+Airport+KEF)
+- **Dinner:** [Oxn](https://www.google.com/maps/search/?api=1&query=Oxn+Reykjavik) — 7:00pm, confirmation #ABC123
+
+#### Accommodations
+
+- **Property:** [Hotel Odinsve](https://www.odinsve.is) ([map](https://www.google.com/maps/search/?api=1&query=Hotel+Odinsve+Reykjavik))
+- **Address:** Skólavörðustígur 7, 101 Reykjavík
+- **Phone:** +354 511 6200
+- **Confirmation:** ABC123
+\`\`\`
 
 **Destinations section:** For multi-destination trips, maintain a \`## Destinations\` section with an ordered bullet list:
 \`\`\`markdown
