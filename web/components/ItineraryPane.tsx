@@ -15,6 +15,10 @@ function preprocessDetailsContent(md: string): string {
     (match, openTag, content, closeTag) => {
       // Process the content inside details (but preserve <summary> tags)
       let processed = content
+        // Convert ### headings to <h3>, etc.
+        .replace(/^####\s+(.+)$/gm, '<h4>$1</h4>')
+        .replace(/^###\s+(.+)$/gm, '<h3>$1</h3>')
+        .replace(/^##\s+(.+)$/gm, '<h2>$1</h2>')
         // Convert **bold** to <strong>
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
         // Convert [text](url) links

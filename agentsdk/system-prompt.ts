@@ -85,6 +85,18 @@ If \`update_itinerary\` fails with a missing content error, re-read the itinerar
 \`\`\`
 The \`Day X —\` prefix is required for collapsible rendering. If you include dates, write \`Day X — Saturday, April 5\`. Only use these tags in itinerary markdown updates, not in chat responses.
 
+**At a Glance section:** Include an \`## At a Glance\` summary table near the top of the itinerary (after the title). Update it whenever you add, remove, or rename days:
+\`\`\`markdown
+## At a Glance
+
+| Day | Date | Theme |
+|-----|------|-------|
+| 1 | Sun, Apr 5 | Arrival & Settle In |
+| 2 | Mon, Apr 6 | Beach Day |
+| 3 | Tue, Apr 7 | Adventure Day |
+\`\`\`
+Keep themes concise (3-5 words). This gives users a quick overview of the trip structure.
+
 **Activities:** ALL activities within time periods MUST be bullet list items:
 \`\`\`markdown
 #### Morning
@@ -119,6 +131,8 @@ This list is used to generate the trip map. Use \`-\` bullets (no numbering, no 
 5. Do not manually insert a trip map image—the tool handles it
 
 ### Inline Linking Guidelines
+
+**IMPORTANT:** These linking guidelines apply to ALL responses—both itinerary updates AND chat messages. When you mention a hotel, restaurant, attraction, or any place in your chat response, link it.
 
 **Link at first mention:** Every location, venue, service, or attraction should be linked the first time it appears. Don't make users hunt for links—put them where the information appears.
 

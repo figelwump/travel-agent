@@ -18,15 +18,18 @@ function formatTimestamp(timestamp: string): string {
   });
 }
 
-// Strip MCP server prefix from tool names for cleaner display
-// e.g., "mcp__t__read_itinerary" -> "read_itinerary"
+// Strip MCP server prefix and format tool names for cleaner display
+// e.g., "mcp__t__read_itinerary" -> "Read itinerary"
 function cleanToolName(name: string): string {
-  if (name.startsWith('mcp__')) {
-    const parts = name.split('__');
+  let cleaned = name;
+  if (cleaned.startsWith('mcp__')) {
+    const parts = cleaned.split('__');
     // mcp__servername__toolname -> toolname
-    return parts.length >= 3 ? parts.slice(2).join('__') : name;
+    cleaned = parts.length >= 3 ? parts.slice(2).join('__') : cleaned;
   }
-  return name;
+  // Replace underscores with spaces and capitalize first letter
+  cleaned = cleaned.replace(/_/g, ' ');
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
 function ToolUseComponent({ toolUse, expanded }: { toolUse: ToolUseBlock; expanded?: boolean }) {

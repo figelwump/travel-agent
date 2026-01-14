@@ -614,6 +614,16 @@ export class ConversationSession {
         this.queryPromise = null;
         this.abortController = null;
         this.cancelRequested = false;
+        // Ensure a result is always sent so the client knows the query is done
+        if (!this.resultSent) {
+          this.resultSent = true;
+          this.broadcast({
+            type: "result",
+            success: true,
+            tripId: this.tripId,
+            conversationId: this.conversationId,
+          });
+        }
       }
     })();
 

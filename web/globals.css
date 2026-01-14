@@ -1116,6 +1116,43 @@
   color: hsl(var(--text-secondary));
 }
 
+/* Tables */
+.prose-terminal table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  font-size: 0.9rem;
+}
+
+.prose-terminal thead {
+  border-bottom: 2px solid hsl(var(--border-medium));
+}
+
+.prose-terminal th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: hsl(var(--text-primary));
+  background: hsl(var(--bg-tertiary) / 0.5);
+}
+
+.prose-terminal td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid hsl(var(--border-subtle));
+  color: hsl(var(--text-secondary));
+  vertical-align: top;
+}
+
+.prose-terminal tbody tr:hover {
+  background: hsl(var(--bg-tertiary) / 0.3);
+}
+
+.prose-terminal th:first-child,
+.prose-terminal td:first-child {
+  font-weight: 500;
+  color: hsl(var(--text-primary));
+}
+
 /* Details/Summary for collapsible sections */
 .prose-terminal details {
   background: hsl(var(--bg-tertiary) / 0.3);
@@ -1140,6 +1177,7 @@
 
 .prose-terminal details[open] summary {
   border-bottom: 1px solid hsl(var(--border-subtle));
+  margin-bottom: 0.75rem;
 }
 
 .prose-terminal details > *:not(summary) {
@@ -1148,6 +1186,11 @@
 
 .prose-terminal details > *:last-child {
   padding-bottom: 1rem;
+}
+
+/* Remove any hr elements inside details (they render as gradient bars) */
+.prose-terminal details hr {
+  display: none;
 }
 
 /* Indent lists inside details to align with headers - override the general padding */
