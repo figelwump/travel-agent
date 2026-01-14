@@ -852,6 +852,13 @@ const App: React.FC = () => {
 
   const mapRequestPrompt =
     "Generate a trip map for my itinerary route. Use the current itinerary to determine the ordered destinations. If the route is unclear, ask me for the ordered list.";
+  const regenerateItineraryPrompt =
+    "Rewrite the entire itinerary to match conventions: add At a Glance (bases + nights), add Tickets & Reservations + Accommodations for each day, add missing inline links, ensure day sections are collapsible, and keep activities as bullet lists. Do not regenerate the map unless destinations changed.";
+
+  const handleRegenerateItinerary = () => {
+    if (isLoading || !activeTripId) return;
+    void handleStartConversationWithPrompt(regenerateItineraryPrompt, 'Regenerate itinerary');
+  };
 
   const handleCancelResponse = () => {
     if (!activeTripId || !activeConversationId) return;
@@ -1067,6 +1074,7 @@ const App: React.FC = () => {
                 markdown={itineraryMarkdown}
                 onRefresh={refreshItinerary}
                 onRequestMap={activeTripId ? () => handleStartConversationWithPrompt(mapRequestPrompt, 'Trip map') : undefined}
+                onRegenerateItinerary={activeTripId ? handleRegenerateItinerary : undefined}
                 onDeleteTrip={handleDeleteTrip}
                 onCollapse={() => setShowItinerary(false)}
                 tripCreatedAt={activeTrip?.createdAt ?? null}

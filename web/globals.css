@@ -1106,6 +1106,10 @@
   margin: 2.5em 0;
 }
 
+.itinerary-prose hr {
+  display: none;
+}
+
 .prose-terminal strong {
   font-weight: 600;
   color: hsl(var(--text-primary));

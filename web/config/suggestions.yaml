@@ -1,3 +1,7 @@
+- id: regenerate-itinerary
+  title: Regenerate itinerary
+  prompt: Rewrite the entire itinerary to match conventions: add At a Glance (bases + nights), add Tickets & Reservations + Accommodations for each day, add missing inline links, ensure day sections are collapsible, and keep activities as bullet lists. Do not regenerate the map unless destinations changed.
+
 - id: list-skills
   title: List Skills
   prompt: What skills are available to you? List them from your Skill tool.

@@ -85,17 +85,16 @@ If \`update_itinerary\` fails with a missing content error, re-read the itinerar
 \`\`\`
 The \`Day X —\` prefix is required for collapsible rendering. If you include dates, write \`Day X — Saturday, April 5\`. Only use these tags in itinerary markdown updates, not in chat responses.
 
-**At a Glance section:** Include an \`## At a Glance\` summary table near the top of the itinerary (after the title). Update it whenever you add, remove, or rename days:
+**At a Glance section:** Include an \`## At a Glance\` summary table near the top of the itinerary (after the title). It should summarize **bases + nights** (not a day-by-day list). Update it whenever bases or nights change:
 \`\`\`markdown
 ## At a Glance
 
-| Day | Date | Theme |
-|-----|------|-------|
-| 1 | Sun, Apr 5 | Arrival & Settle In |
-| 2 | Mon, Apr 6 | Beach Day |
-| 3 | Tue, Apr 7 | Adventure Day |
+| Base | Nights | Dates |
+|------|--------|-------|
+| Reykjavík | 3 | Jul 15-18 |
+| Vík | 2 | Jul 18-20 |
 \`\`\`
-Keep themes concise (3-5 words). This gives users a quick overview of the trip structure.
+If dates are unclear, use \`TBD\`. This gives users a quick overview of where they sleep and for how long.
 
 **Activities:** ALL activities within time periods MUST be bullet list items:
 \`\`\`markdown
@@ -109,9 +108,9 @@ Do NOT use plain paragraphs for activities—always use bullet lists.
 
 **TODOs:** Reserve \`- [ ]\` checkboxes only for true action items (bookings, confirmations, unknowns to research). Use plain bullets for scheduled activities.
 
-**Required subsections:** Every day must include:
-- \`#### Accommodation\` — hotel details or \`- [ ] Book hotel\` if unknown
+**Required subsections:** Every day must include (in this order):
 - \`#### Tickets & Reservations\` — bookings for that day, or "No reservations needed"
+- \`#### Accommodations\` — lodging for that night with address/phone/confirmation/check-in details when known, or \`- [ ] Book hotel\` if unknown
 
 **Destinations section:** For multi-destination trips, maintain a \`## Destinations\` section with an ordered bullet list:
 \`\`\`markdown
@@ -130,9 +129,18 @@ This list is used to generate the trip map. Use \`-\` bullets (no numbering, no 
 4. Only regenerate if the list changes or the user asks
 5. Do not manually insert a trip map image—the tool handles it
 
+**Regenerate/Reformat requests:** If the user asks to "regenerate", "rewrite", "reformat", or "normalize" the itinerary, do a full-pass rewrite of the entire itinerary:
+- Ensure the \`## At a Glance\` table summarizes bases + nights.
+- Ensure every day is in a \`<details>\` block with a \`Day X —\` summary.
+- Ensure all activities are bullet lists (no paragraphs).
+- Ensure every day includes \`#### Tickets & Reservations\` and \`#### Accommodations\` in order.
+- Add missing inline links at first mention; do not preserve unlinked place names.
+- Do NOT regenerate the trip map unless destinations changed or the user explicitly asks for a map.
+When you update specific days (even without a full regen request), bring those edited days into full compliance with the conventions above.
+
 ### Inline Linking Guidelines
 
-**IMPORTANT:** These linking guidelines apply to ALL responses—both itinerary updates AND chat messages. When you mention a hotel, restaurant, attraction, or any place in your chat response, link it.
+**IMPORTANT:** These linking guidelines apply to ALL responses—both itinerary updates AND chat messages. When you mention a hotel, restaurant, attraction, or any place in your chat response, link it. When reformatting an existing itinerary, add missing links instead of preserving unlinked text.
 
 **Link at first mention:** Every location, venue, service, or attraction should be linked the first time it appears. Don't make users hunt for links—put them where the information appears.
 
