@@ -221,8 +221,7 @@ export function ItineraryPane({
 }: ItineraryPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState(markdown);
+  const [perTripEdits, setPerTripEdits] = useState<Record<string, { isEditing: boolean; draft: string }>>({});
   const [isSaving, setIsSaving] = useState(false);
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
@@ -245,9 +244,18 @@ export function ItineraryPane({
     return dateTimeFormatter.format(d);
   }, [dateTimeFormatter, tripUpdatedAt]);
 
+  const currentTripState = tripId ? perTripEdits[tripId] : undefined;
+  const isEditing = currentTripState?.isEditing ?? false;
+  const draft = currentTripState?.draft ?? markdown;
+
   useEffect(() => {
-    if (!isEditing) setDraft(markdown);
-  }, [markdown, isEditing]);
+    if (!tripId || isEditing) return;
+    setPerTripEdits((prev) => {
+      const existing = prev[tripId];
+      if (existing?.draft === markdown && existing?.isEditing === false) return prev;
+      return { ...prev, [tripId]: { isEditing: false, draft: markdown } };
+    });
+  }, [isEditing, markdown, tripId]);
 
   const canInteract = Boolean(tripId && credentials);
 
@@ -283,7 +291,7 @@ export function ItineraryPane({
       alert(`Save failed: ${res.error}`);
       return;
     }
-    setIsEditing(false);
+    setPerTripEdits((prev) => ({ ...prev, [tripId]: { isEditing: false, draft } }));
     onRefresh();
   };
 
@@ -300,6 +308,11 @@ export function ItineraryPane({
   const handleGenerateMap = async () => {
     if (!onRequestMap) return;
     onRequestMap();
+  };
+
+  const handleCancelEdit = () => {
+    if (!tripId) return;
+    setPerTripEdits((prev) => ({ ...prev, [tripId]: { isEditing: false, draft: markdown } }));
   };
 
   const sanitizeSchema = useMemo(() => {
@@ -435,7 +448,15 @@ export function ItineraryPane({
           <button
             type="button"
             className="icon-btn"
-            onClick={() => setIsEditing(v => !v)}
+            onClick={() => {
+              if (!tripId) return;
+              setPerTripEdits((prev) => {
+                const existing = prev[tripId];
+                const nextIsEditing = !(existing?.isEditing ?? false);
+                const nextDraft = existing?.draft ?? markdown;
+                return { ...prev, [tripId]: { isEditing: nextIsEditing, draft: nextDraft } };
+              });
+            }}
             disabled={!canInteract || isSaving}
             title={isEditing ? 'Preview' : 'Edit'}
           >
@@ -447,8 +468,8 @@ export function ItineraryPane({
             ) : (
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
             )}
           </button>
           <button
@@ -467,9 +488,14 @@ export function ItineraryPane({
             </svg>
           </button>
           {isEditing && (
-            <button type="button" className="btn-primary px-3 py-1.5 text-xs" onClick={handleSave} disabled={!canInteract || isSaving}>
-              {isSaving ? 'Saving…' : 'Save'}
-            </button>
+            <>
+              <button type="button" className="btn-secondary px-3 py-1.5 text-xs" onClick={handleCancelEdit} disabled={!canInteract || isSaving}>
+                Cancel
+              </button>
+              <button type="button" className="btn-primary px-3 py-1.5 text-xs" onClick={handleSave} disabled={!canInteract || isSaving}>
+                {isSaving ? 'Saving…' : 'Save'}
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -482,7 +508,14 @@ export function ItineraryPane({
           <textarea
             className="input-terminal w-full"
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              if (!tripId) return;
+              const nextDraft = e.target.value;
+              setPerTripEdits((prev) => {
+                const existing = prev[tripId];
+                return { ...prev, [tripId]: { isEditing: existing?.isEditing ?? false, draft: nextDraft } };
+              });
+            }}
             style={{ minHeight: '100%', resize: 'none' }}
           />
         ) : (
