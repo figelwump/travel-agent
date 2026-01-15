@@ -70,6 +70,19 @@ Use `--no-create` to avoid creating new trips/conversations; pair it with `--tri
 
 Transcripts are saved under `debug/transcripts/session-<timestamp>.jsonl`. Use the transcript to verify fixes, then keep iterating until the session looks correct for the issue being debugged or the feature being tested.
 
+### Safe Trip Copies (avoid polluting real trips)
+
+When testing prompt behavior against a real itinerary, copy the trip first so you don’t add debug chats or edits to the original trip.
+
+```bash
+bun run cli trips copy --trip-id <id> --name "Trip Name (Copy)"
+```
+
+Notes:
+- Chat history is **not** copied by default. Pass `--include-conversations` only if you need it.
+- Uploads and assets are copied by default; disable with `--no-include-uploads` or `--no-include-assets`.
+- The copied trip is created locally under `~/.travelagent/trips/<newTripId>/`.
+
 ## Architecture
 
 This is a personal travel planning agent with a Bun server backend and React frontend. The agent uses the Claude Agent SDK to run agentic conversations with tool use.

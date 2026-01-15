@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import readline from "node:readline";
+import crypto from "node:crypto";
 import WebSocket from "ws";
 
 type Trip = { id: string; name: string; createdAt: string; updatedAt: string };
@@ -27,6 +28,33 @@ function cliTimestamp(): string {
 function withSuffix(base: string, suffix: string): string {
   const trimmed = base.trim();
   return trimmed ? `${trimmed} (${suffix})` : suffix;
+}
+
+function homeDir(): string {
+  const home = process.env.HOME || process.env.USERPROFILE;
+  if (!home) throw new Error("No HOME/USERPROFILE set; cannot resolve travel agent data directory.");
+  return home;
+}
+
+function travelAgentHome(): string {
+  return process.env.TRAVEL_AGENT_HOME || path.join(homeDir(), ".travelagent");
+}
+
+function tripsRoot(): string {
+  return path.join(travelAgentHome(), "trips");
+}
+
+function tripDir(tripId: string): string {
+  return path.join(tripsRoot(), tripId);
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function toWsUrl(baseUrl: string): string {
@@ -127,6 +155,109 @@ async function createTrip(baseUrl: string, password: string, name: string): Prom
   });
 }
 
+type CopyTripOptions = {
+  includeConversations: boolean;
+  includeUploads: boolean;
+  includeAssets: boolean;
+};
+
+async function copyFile(sourcePath: string, destPath: string): Promise<void> {
+  await fs.mkdir(path.dirname(destPath), { recursive: true });
+  await fs.copyFile(sourcePath, destPath);
+}
+
+async function copyDir(
+  sourcePath: string,
+  destPath: string,
+  options: CopyTripOptions,
+): Promise<void> {
+  const entries = await fs.readdir(sourcePath, { withFileTypes: true });
+  await fs.mkdir(destPath, { recursive: true });
+  for (const entry of entries) {
+    const from = path.join(sourcePath, entry.name);
+    const to = path.join(destPath, entry.name);
+
+    if (entry.isDirectory()) {
+      if (entry.name === "chats" && !options.includeConversations) continue;
+      if (entry.name === "uploads" && !options.includeUploads) continue;
+      if (entry.name === "assets" && !options.includeAssets) continue;
+      await copyDir(from, to, options);
+      continue;
+    }
+
+    if (entry.name === "trip.json") continue;
+    if (entry.name === "itinerary.md") continue;
+    if (entry.name === "context.md") continue;
+    await copyFile(from, to);
+  }
+}
+
+function rewriteTripLinks(content: string, sourceId: string, destId: string): string {
+  return content
+    .replaceAll(`/api/trips/${sourceId}/assets/`, `/api/trips/${destId}/assets/`)
+    .replaceAll(`/api/trips/${sourceId}/uploads/`, `/api/trips/${destId}/uploads/`);
+}
+
+async function copyTripFiles(
+  sourceTripId: string,
+  destTripId: string,
+  options: CopyTripOptions,
+): Promise<void> {
+  const sourcePath = tripDir(sourceTripId);
+  const destPath = tripDir(destTripId);
+
+  if (!(await fileExists(sourcePath))) {
+    throw new Error(`Trip data not found on disk for ${sourceTripId}.`);
+  }
+
+  await fs.mkdir(destPath, { recursive: true });
+  await fs.mkdir(path.join(destPath, "chats"), { recursive: true });
+  await fs.mkdir(path.join(destPath, "uploads"), { recursive: true });
+  await fs.mkdir(path.join(destPath, "assets"), { recursive: true });
+
+  await copyDir(sourcePath, destPath, options);
+}
+
+async function writeTripMetadata(tripId: string, name: string): Promise<void> {
+  const t = nowIso();
+  const payload = { id: tripId, name: name.trim() || "Untitled trip", createdAt: t, updatedAt: t };
+  await fs.writeFile(path.join(tripDir(tripId), "trip.json"), JSON.stringify(payload, null, 2), "utf8");
+}
+
+async function copyTextFileWithTripLinks(
+  sourcePath: string,
+  destPath: string,
+  sourceTripId: string,
+  destTripId: string,
+): Promise<void> {
+  if (!(await fileExists(sourcePath))) return;
+  const raw = await fs.readFile(sourcePath, "utf8");
+  const rewritten = rewriteTripLinks(raw, sourceTripId, destTripId);
+  await fs.writeFile(destPath, rewritten, "utf8");
+}
+
+async function updateConversationMetadata(destTripId: string): Promise<void> {
+  const chatsDir = path.join(tripDir(destTripId), "chats");
+  const exists = await fileExists(chatsDir);
+  if (!exists) return;
+  const entries = await fs.readdir(chatsDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const metaPath = path.join(chatsDir, entry.name, "conversation.json");
+    if (!(await fileExists(metaPath))) continue;
+    const raw = await fs.readFile(metaPath, "utf8");
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    parsed.tripId = destTripId;
+    parsed.updatedAt = nowIso();
+    await fs.writeFile(metaPath, JSON.stringify(parsed, null, 2), "utf8");
+  }
+}
+
 async function deleteTrip(baseUrl: string, password: string, tripId: string): Promise<void> {
   await apiFetch(baseUrl, password, `/api/trips/${tripId}`, { method: "DELETE" });
 }
@@ -207,6 +338,50 @@ async function deleteTripCommand(args: CliArgs, rest: string[]): Promise<void> {
   const trip = await resolveExistingTrip(baseUrl, password, args, rest);
   await deleteTrip(baseUrl, password, trip.id);
   emitJsonLine({ type: "trip_deleted", tripId: trip.id, name: trip.name });
+}
+
+async function copyTripCommand(args: CliArgs, rest: string[]): Promise<void> {
+  const baseUrl = typeof args.url === "string" ? args.url : DEFAULT_BASE_URL;
+  const password = typeof args.auth === "string" ? args.auth : DEFAULT_PASSWORD;
+  const sourceTrip = await resolveExistingTrip(baseUrl, password, args, rest);
+  const includeConversations = flagEnabled(args, "include-conversations", false);
+  const includeUploads = flagEnabled(args, "include-uploads", true);
+  const includeAssets = flagEnabled(args, "include-assets", true);
+
+  const newName = typeof args.name === "string"
+    ? args.name
+    : withSuffix(sourceTrip.name, `Copy ${cliTimestamp()}`);
+  const destTripId = crypto.randomUUID();
+
+  await copyTripFiles(sourceTrip.id, destTripId, {
+    includeConversations,
+    includeUploads,
+    includeAssets,
+  });
+
+  await writeTripMetadata(destTripId, newName);
+
+  const sourceItinerary = path.join(tripDir(sourceTrip.id), "itinerary.md");
+  const destItinerary = path.join(tripDir(destTripId), "itinerary.md");
+  await copyTextFileWithTripLinks(sourceItinerary, destItinerary, sourceTrip.id, destTripId);
+
+  const sourceContext = path.join(tripDir(sourceTrip.id), "context.md");
+  const destContext = path.join(tripDir(destTripId), "context.md");
+  await copyTextFileWithTripLinks(sourceContext, destContext, sourceTrip.id, destTripId);
+
+  if (includeConversations) {
+    await updateConversationMetadata(destTripId);
+  }
+
+  emitJsonLine({
+    type: "trip_copied",
+    sourceTripId: sourceTrip.id,
+    tripId: destTripId,
+    name: newName,
+    includeConversations,
+    includeUploads,
+    includeAssets,
+  });
 }
 
 async function listConversationsCommand(args: CliArgs, rest: string[]): Promise<void> {
@@ -753,6 +928,7 @@ function printHelp(): void {
   console.log(`Usage:
   bun run cli trips list
   bun run cli trips delete --trip-id <id>
+  bun run cli trips copy --trip-id <id> [--name "New name"] [--include-conversations]
   bun run cli session run --input session.json [--trip-id <id> | --trip <name>] [--conversation-id <id> | --conversation <title>]
   bun run cli session run --message "Hello" [--trip-id <id> | --trip <name>] [--conversation-id <id> | --conversation <title>]
   bun run cli session repl [--trip-id <id> | --trip <name>] [--conversation-id <id> | --conversation <title>]
@@ -768,6 +944,10 @@ Options:
   --trip <name>          Trip name for session selection (use --reuse-trip to reuse)
   --conversation-id <id> Conversation id for session selection or deletion
   --conversation <title> Conversation title for session selection
+  --name <text>          New trip name for trips copy
+  --include-conversations Copy chat history into the new trip (default: false)
+  --include-uploads      Copy uploads into the new trip (default: true)
+  --include-assets       Copy assets into the new trip (default: true)
   --message <text>       Single user message (skip --input)
   --out <path>           Transcript JSONL output path
   --markdown <path>      Optional markdown transcript output path
@@ -801,6 +981,11 @@ async function main() {
 
   if (command === "trips" && subcommand === "delete") {
     await deleteTripCommand(args, rest);
+    return;
+  }
+
+  if (command === "trips" && subcommand === "copy") {
+    await copyTripCommand(args, rest);
     return;
   }
 

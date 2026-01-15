@@ -853,7 +853,7 @@ const App: React.FC = () => {
   const mapRequestPrompt =
     "Generate a trip map for my itinerary route. Use the current itinerary to determine the ordered destinations. If the route is unclear, ask me for the ordered list.";
   const regenerateItineraryPrompt =
-    "Rewrite the entire itinerary to match conventions: add At a Glance (bases + nights), add Tickets & Reservations + Accommodations for each day, add missing inline links, ensure day sections are collapsible, and keep activities as bullet lists. Do not regenerate the map unless destinations changed.";
+    "Fully regenerate the itinerary using the latest itinerary conventions and follow the conventions provided in your system prompt. Do not regenerate the map unless destinations changed.";
 
   const handleRegenerateItinerary = () => {
     if (isLoading || !activeTripId) return;
