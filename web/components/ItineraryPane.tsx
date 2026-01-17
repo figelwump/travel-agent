@@ -149,6 +149,14 @@ function normalizeDaySections(md: string): string {
   return out.join('\n');
 }
 
+function normalizeTodoText(text: string): string {
+  return text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[*_`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 type Credentials = { password: string };
 
 function authHeader(credentials: Credentials | null): string | null {
@@ -269,7 +277,7 @@ export function ItineraryPane({
     for (let i = 0; i < lines.length; i++) {
       const match = lines[i].match(todoRegex);
       if (match) {
-        const text = match[1].trim();
+        const text = normalizeTodoText(match[1].trim());
         if (!map.has(text)) map.set(text, i + 1); // 1-based, first occurrence wins
       }
     }
@@ -547,7 +555,7 @@ export function ItineraryPane({
                         // Find the parent list item and get its text content
                         const listItem = e.target.closest('li');
                         if (!listItem) return;
-                        const text = listItem.textContent?.trim();
+                        const text = normalizeTodoText(listItem.textContent?.trim() || '');
                         if (!text) return;
                         const line = todoTextToLine.get(text);
                         if (typeof line === 'number') handleToggleTodoLine(line);
