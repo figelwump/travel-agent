@@ -1093,6 +1093,14 @@
   margin: 1.5em 0;
 }
 
+.prose-terminal blockquote p {
+  margin: 0;
+}
+
+.prose-terminal blockquote p + p {
+  margin-top: 0.75em;
+}
+
 .prose-terminal hr {
   border: none;
   height: 1px;
