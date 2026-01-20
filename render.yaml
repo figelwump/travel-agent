@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: claudeboxes-sandbox
+    name: travel-agent
     env: docker
     plan: standard
     region: oregon
@@ -17,5 +17,7 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: TRAVEL_AGENT_HOME
+        value: "/var/data/travelagent"
       - key: PORT
-        value: "3000"
+        value: "3001"

@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { MessageRenderer } from './message/MessageRenderer';
-import { Message, StructuredPrompt } from './message/types';
-import { SuggestedQueries } from './dashboard/SuggestedQueries';
+import { Message } from './message/types';
 
 interface ChatInterfaceProps {
   isConnected: boolean;
@@ -27,42 +26,18 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     scrollToBottom();
   }, [messages]);
 
-  const dispatchPrompt = (prompt: StructuredPrompt) => {
-    const { displayText, agentText, metadata } = prompt;
+  const dispatchMessage = (content: string) => {
     const timestamp = new Date().toISOString();
     const userMessage: Message = {
       id: Date.now().toString(),
       type: 'user',
-      content: displayText,
+      content,
       timestamp,
     };
 
-    const mergedMetadata: Record<string, unknown> = metadata ? { ...metadata } : {};
-    if (!('agentText' in mergedMetadata) || mergedMetadata.agentText !== agentText) {
-      mergedMetadata.agentText = agentText;
-    }
-
-    if (Object.keys(mergedMetadata).length > 0) {
-      userMessage.metadata = mergedMetadata;
-    }
-
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
-    sendMessage({ type: 'chat', content: agentText, sessionId });
-  };
-
-  const sendSuggestedPrompt = (prompt: StructuredPrompt | string) => {
-    if (isLoading || !isConnected) return;
-
-    const structured: StructuredPrompt = typeof prompt === 'string'
-      ? { displayText: prompt, agentText: prompt }
-      : prompt;
-
-    if (!structured.displayText.trim() || !structured.agentText.trim()) {
-      return;
-    }
-
-    dispatchPrompt({ ...structured });
+    sendMessage({ type: 'chat', content, sessionId });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -73,7 +48,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
     if (!trimmed) return;
 
     setInputValue('');
-    dispatchPrompt({ displayText: trimmed, agentText: trimmed });
+    dispatchMessage(trimmed);
   };
 
   const hasStreamingAssistant = useMemo(() => (
@@ -87,11 +62,11 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="animate-fade-in">
             <h1 className="header-display text-2xl" style={{ color: 'hsl(var(--text-primary))' }}>
-              Claude Agent Sandbox
+              Travel Agent
             </h1>
             <p className="mono-label mt-1 flex items-center gap-2">
               <span style={{ color: 'hsl(var(--accent-muted))' }}>{'>'}</span>
-              Interactive agent runtime
+              Collaborative trip planning
             </p>
           </div>
 
@@ -125,11 +100,6 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-6 py-6">
-          {/* Suggested Queries */}
-          <div className="mb-8 animate-slide-up delay-150">
-            <SuggestedQueries onSend={sendSuggestedPrompt} disabled={!isConnected || isLoading} />
-          </div>
-
           {/* Messages or Empty State */}
           {messages.length === 0 ? (
             <div className="relative py-20 animate-fade-in delay-200">
@@ -150,8 +120,8 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
                   Ready for input
                 </h2>
                 <p className="mono-label max-w-md mx-auto leading-relaxed">
-                  Ask the agent to inspect files, run commands, or explore the repository.
-                  Use the suggestions above or type your own query below.
+                  Ask for an itinerary draft, refine a day plan, or capture booking details.
+                  You can also add preferences or open questions to follow up on.
                 </p>
               </div>
             </div>
@@ -163,7 +133,7 @@ export function ChatInterface({ isConnected, sendMessage, messages, setMessages,
                   className="animate-slide-up"
                   style={{ animationDelay: `${Math.min(index * 50, 300)}ms` }}
                 >
-                  <MessageRenderer message={msg} onSendMessage={sendSuggestedPrompt} />
+                  <MessageRenderer message={msg} />
                 </div>
               ))}
 

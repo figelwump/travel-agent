@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { AssistantMessage as AssistantMessageType, ToolUseBlock, TextBlock, StructuredPrompt, ToolActivity } from './types';
+import { AssistantMessage as AssistantMessageType, ToolUseBlock, TextBlock, ToolActivity } from './types';
 
 interface AssistantMessageProps {
   message: AssistantMessageType;
-  onSendMessage?: (message: StructuredPrompt | string) => void;
   isLastAndStillWorking?: boolean;
 }
 

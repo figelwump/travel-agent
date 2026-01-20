@@ -4,3 +4,7 @@ node_modules
 bun.lockb
 output
 *.log
+.env
+.env.*
+debug
+.playwright-mcp

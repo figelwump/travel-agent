@@ -14,7 +14,7 @@ Personal travel planning agent with:
 bun install
 ANTHROPIC_API_KEY=sk-... DISABLE_AUTH=true bun run dev
 ```
-Visit http://localhost:3000.
+Visit http://localhost:3001.
 
 By default, trips are persisted under `~/.travelagent` (override with `TRAVEL_AGENT_HOME`).
 
@@ -55,7 +55,7 @@ bun run cli trips list
 Auth + URL can be provided via environment:
 
 ```bash
-TRAVEL_AGENT_URL=http://localhost:3000 TRAVEL_AGENT_PASSWORD=... bun run cli session run --input docs/session.example.json
+TRAVEL_AGENT_URL=http://localhost:3001 TRAVEL_AGENT_PASSWORD=... bun run cli session run --input docs/session.example.json
 ```
 
 To suppress non-JSON output (useful for automation), add `--quiet`.
@@ -81,6 +81,12 @@ DISABLE_AUTH=true
 ```
 
 **Warning**: Never use `DISABLE_AUTH=true` in production.
+
+## Deployment notes (Render/Docker)
+
+- The `Dockerfile` includes cron + sshd for optional remote management and scheduled jobs.
+- If you attach a Render disk at `/var/data`, set `TRAVEL_AGENT_HOME=/var/data/travelagent` so trip data persists.
+- Ensure `PORT=3001` matches your host configuration.
 
 ## Generated trip map image
 

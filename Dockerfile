@@ -1,4 +1,4 @@
-# Build and run the Claude sandbox server with Bun
+# Build and run the Travel Agent server with Bun
 FROM oven/bun:1.2.23
 
 # Install cron and OpenSSH server so Render SSH can connect
@@ -26,8 +26,9 @@ RUN bun install --frozen-lockfile
 # Copy the rest of the repo
 COPY . .
 
-ENV PORT=3000
-EXPOSE 3000 22
+ENV PORT=3001
+ENV TRAVEL_AGENT_HOME=/var/data/travelagent
+EXPOSE 3001 22
 
 ENTRYPOINT ["entrypoint.sh"]
 CMD ["bun", "run", "server/server.ts"]

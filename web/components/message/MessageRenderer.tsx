@@ -1,16 +1,15 @@
 import React from 'react';
-import { Message, StructuredPrompt } from './types';
+import { Message } from './types';
 import { UserMessage } from './UserMessage';
 import { SystemMessage } from './SystemMessage';
 import { AssistantMessage } from './AssistantMessage';
 
 interface MessageRendererProps {
   message: Message;
-  onSendMessage?: (message: StructuredPrompt | string) => void;
   isLastAndStillWorking?: boolean;
 }
 
-export function MessageRenderer({ message, onSendMessage, isLastAndStillWorking }: MessageRendererProps) {
+export function MessageRenderer({ message, isLastAndStillWorking }: MessageRendererProps) {
   switch (message.type) {
     case 'user':
       return <UserMessage message={message} />;
@@ -19,7 +18,7 @@ export function MessageRenderer({ message, onSendMessage, isLastAndStillWorking 
       return <SystemMessage message={message} />;
 
     case 'assistant':
-      return <AssistantMessage message={message} onSendMessage={onSendMessage} isLastAndStillWorking={isLastAndStillWorking} />;
+      return <AssistantMessage message={message} isLastAndStillWorking={isLastAndStillWorking} />;
     
     default:
       return (

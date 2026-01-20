@@ -4,19 +4,10 @@ export interface BaseMessage {
     type: 'user' | 'assistant' | 'system';
   }
   
-  export interface StructuredPrompt {
-    displayText: string;
-    agentText: string;
-    metadata?: Record<string, unknown>;
-  }
-
   export interface UserMessage extends BaseMessage {
     type: 'user';
     content: string;
-    metadata?: {
-      agentText?: string;
-      [key: string]: unknown;
-    };
+    metadata?: Record<string, unknown>;
   }
   
   export interface ToolUseBlock {

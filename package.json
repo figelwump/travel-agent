@@ -14,9 +14,6 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "latest",
     "dotenv": "^17.2.1",
-    "glob": "^11.0.0",
-    "jotai": "^2.15.0",
-    "lucide-react": "^0.544.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",
@@ -24,7 +21,6 @@
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "ws": "^8.18.3",
-    "yaml": "^2.5.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {

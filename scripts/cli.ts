@@ -14,7 +14,7 @@ type TranscriptEvent = Record<string, unknown> & { type: string; timestamp: stri
 type ResolvedTrip = { trip: Trip; created: boolean };
 type CliArgs = { _: string[]; [key: string]: string | boolean | string[] | undefined };
 
-const DEFAULT_BASE_URL = process.env.TRAVEL_AGENT_URL || "http://localhost:3000";
+const DEFAULT_BASE_URL = process.env.TRAVEL_AGENT_URL || "http://localhost:3001";
 const DEFAULT_PASSWORD = process.env.TRAVEL_AGENT_PASSWORD || "";
 
 function nowIso(): string {
@@ -60,7 +60,7 @@ async function fileExists(filePath: string): Promise<boolean> {
 function toWsUrl(baseUrl: string): string {
   if (baseUrl.startsWith("https://")) return baseUrl.replace("https://", "wss://") + "/ws";
   if (baseUrl.startsWith("http://")) return baseUrl.replace("http://", "ws://") + "/ws";
-  return "ws://localhost:3000/ws";
+  return "ws://localhost:3001/ws";
 }
 
 function base64(value: string): string {

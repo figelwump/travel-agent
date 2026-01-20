@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { Message, TextBlock, ToolActivity } from "./components/message/types";
 import { ChatPanel } from "./components/ChatPanel";
@@ -133,7 +133,7 @@ const App: React.FC = () => {
 
   const wsUrl = typeof window !== 'undefined'
     ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
-    : 'ws://localhost:3000/ws';
+    : 'ws://localhost:3001/ws';
 
   const activeTrip = useMemo(() => trips.find(t => t.id === activeTripId) ?? null, [trips, activeTripId]);
   const activeConversation = useMemo(() => conversations.find(c => c.id === activeConversationId) ?? null, [conversations, activeConversationId]);
@@ -468,8 +468,7 @@ const App: React.FC = () => {
           refreshItinerary();
           break;
         }
-        case 'context_updated':
-        case 'prefs_updated': {
+        case 'context_updated': {
           // noop in UI for now (context refresh happens on next message)
           break;
         }
@@ -820,7 +819,7 @@ const App: React.FC = () => {
     setMessages([]);
   };
 
-  const handleStartConversationWithPrompt = async (prompt: string, title?: string) => {
+  const handleStartConversationWithPrompt = useCallback(async (prompt: string, title?: string) => {
     if (!activeTripId) return;
     const res = await apiFetch<Conversation>(
       `/api/trips/${activeTripId}/conversations`,
@@ -842,9 +841,9 @@ const App: React.FC = () => {
     const userMessage: Message = { id: Date.now().toString(), type: 'user', content: prompt, timestamp };
     setMessages([userMessage]);
     sendMessage({ type: 'chat', tripId: activeTripId, conversationId: res.data.id, content: prompt });
-  };
+  }, [activeTripId, credentials, sendMessage]);
 
-  const handleSendUserText = (text: string) => {
+  const handleSendUserText = useCallback((text: string) => {
     if (!activeTripId || !activeConversationId) return;
     queryInProgressRef.current = true;
     const timestamp = new Date().toISOString();
@@ -854,7 +853,7 @@ const App: React.FC = () => {
     toolUseToMessageRef.current = {};
     setIsLoading(true);
     sendMessage({ type: 'chat', tripId: activeTripId, conversationId: activeConversationId, content: text });
-  };
+  }, [activeTripId, activeConversationId, sendMessage]);
 
   const mapRequestPrompt =
     "Generate a trip map for my itinerary route. Use the current itinerary to determine the ordered destinations. If the route is unclear, ask me for the ordered list.";
@@ -866,7 +865,7 @@ const App: React.FC = () => {
     void handleStartConversationWithPrompt(regenerateItineraryPrompt, 'Regenerate itinerary');
   };
 
-  const handleCancelResponse = () => {
+  const handleCancelResponse = useCallback(() => {
     if (!activeTripId || !activeConversationId) return;
     sendMessage({ type: 'cancel', tripId: activeTripId, conversationId: activeConversationId });
     setIsLoading(false);
@@ -874,9 +873,9 @@ const App: React.FC = () => {
     streamingMessageIdRef.current = null;
     toolActivityMessageIdRef.current = null;
     toolUseToMessageRef.current = {};
-  };
+  }, [activeTripId, activeConversationId, sendMessage]);
 
-  const handleUploadFiles = async (files: FileList) => {
+  const handleUploadFiles = useCallback(async (files: FileList) => {
     if (!activeTripId || !activeConversationId) return;
     const form = new FormData();
     Array.from(files).forEach((f) => form.append('file', f));
@@ -888,7 +887,7 @@ const App: React.FC = () => {
     const uploaded = res.data.files;
     const msg = `Uploaded files:\n- ${uploaded.join('\n- ')}`;
     handleSendUserText(msg + `\n\n(Stored in ~/.travelagent/trips/${activeTripId}/uploads/)`);
-  };
+  }, [activeTripId, activeConversationId, credentials, handleSendUserText]);
 
   return (
     <div className="flex flex-col h-screen" style={{ background: 'hsl(var(--bg-primary))' }}>

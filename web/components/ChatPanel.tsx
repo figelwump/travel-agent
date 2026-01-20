@@ -32,6 +32,125 @@ interface ChatPanelProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
+type MessageListProps = {
+  messages: Message[];
+  isLoading: boolean;
+  tripName: string | null;
+  inputDisabled: boolean;
+  onSend: (text: string) => void;
+};
+
+const MessageList = React.memo(function MessageList({
+  messages,
+  isLoading,
+  tripName,
+  inputDisabled,
+  onSend,
+}: MessageListProps) {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasStreamingAssistant = useMemo(() => (
+    messages.some(msg => msg.type === 'assistant' && msg.metadata?.streaming)
+  ), [messages]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-4">
+      {messages.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-full text-center py-12 px-6">
+          {/* Travel-themed decorative icon */}
+          <div className="empty-state-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              {tripName ? (
+                // Compass icon for active trip
+                <>
+                  <circle cx="12" cy="12" r="10" />
+                  <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" fill="currentColor" opacity="0.2" />
+                  <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+                </>
+              ) : (
+                // Globe icon for no trip
+                <>
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </>
+              )}
+            </svg>
+          </div>
+
+          <h2 className="header-display text-2xl mb-3" style={{ color: 'hsl(var(--text-primary))' }}>
+            {tripName ? tripName : 'Where to next?'}
+          </h2>
+
+          <p className="text-sm max-w-sm mb-6" style={{ color: 'hsl(var(--text-secondary))', lineHeight: 1.7 }}>
+            {tripName
+              ? 'Pick a starting point below, or just start typing what you have in mind.'
+              : 'Create a new trip to start planning your next adventure with your personal travel agent.'}
+          </p>
+
+          {tripName && (
+            <div className="flex flex-wrap gap-2 justify-center">
+              {[
+                {
+                  label: 'Start a new trip',
+                  prompt: 'I am planning a new trip. Please walk me through the planning interview.',
+                },
+                {
+                  label: 'Use an existing itinerary',
+                  prompt: 'I already have a trip plan. Ask me to upload files or paste my itinerary and bookings so you can help improve it.',
+                },
+              ].map((suggestion, i) => (
+                <button
+                  key={suggestion.label}
+                  type="button"
+                  className="suggestion-chip animate-fade-in"
+                  style={{ animationDelay: `${i * 75}ms` }}
+                  onClick={() => onSend(suggestion.prompt)}
+                  disabled={inputDisabled}
+                >
+                  {suggestion.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {messages.map((msg, index) => {
+            const isLast = index === messages.length - 1;
+            const isLastAssistantStillWorking = isLast && msg.type === 'assistant' && isLoading;
+            return (
+              <div key={msg.id} className="animate-slide-up" style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
+                <MessageRenderer message={msg} isLastAndStillWorking={isLastAssistantStillWorking} />
+              </div>
+            );
+          })}
+
+          {isLoading && !hasStreamingAssistant && (
+            <div className="message-card message-assistant p-4 animate-slide-up">
+              <div className="flex items-center gap-3">
+                <span className="mono-label" style={{ color: 'hsl(var(--text-tertiary))' }}>AGENT</span>
+                <div className="flex items-center gap-2">
+                  <span className="loading-dots" aria-label="Loading">
+                    <span className="loading-dot" />
+                    <span className="loading-dot" />
+                    <span className="loading-dot" />
+                  </span>
+                  <span style={{ color: 'hsl(var(--text-secondary))', fontSize: '0.85rem' }}>Thinking</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      <div ref={messagesEndRef} />
+    </div>
+  );
+});
+
 export function ChatPanel({
   isConnected,
   isLoading,
@@ -48,17 +167,9 @@ export function ChatPanel({
   conversationTitle,
   textareaRef: externalTextareaRef,
 }: ChatPanelProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = externalTextareaRef ?? internalTextareaRef;
-
-  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  useEffect(() => { scrollToBottom(); }, [messages.length]);
-
-  const hasStreamingAssistant = useMemo(() => (
-    messages.some(msg => msg.type === 'assistant' && msg.metadata?.streaming)
-  ), [messages]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -82,97 +193,13 @@ export function ChatPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12 px-6">
-            {/* Travel-themed decorative icon */}
-            <div className="empty-state-icon">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                {tripName ? (
-                  // Compass icon for active trip
-                  <>
-                    <circle cx="12" cy="12" r="10" />
-                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" fill="currentColor" opacity="0.2" />
-                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
-                  </>
-                ) : (
-                  // Globe icon for no trip
-                  <>
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="2" y1="12" x2="22" y2="12" />
-                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                  </>
-                )}
-              </svg>
-            </div>
-
-            <h2 className="header-display text-2xl mb-3" style={{ color: 'hsl(var(--text-primary))' }}>
-              {tripName ? tripName : 'Where to next?'}
-            </h2>
-
-            <p className="text-sm max-w-sm mb-6" style={{ color: 'hsl(var(--text-secondary))', lineHeight: 1.7 }}>
-              {tripName
-                ? 'Pick a starting point below, or just start typing what you have in mind.'
-                : 'Create a new trip to start planning your next adventure with your personal travel agent.'}
-            </p>
-
-            {tripName && (
-              <div className="flex flex-wrap gap-2 justify-center">
-                {[
-                  {
-                    label: 'Start a new trip',
-                    prompt: 'I am planning a new trip. Please walk me through the planning interview.',
-                  },
-                  {
-                    label: 'Use an existing itinerary',
-                    prompt: 'I already have a trip plan. Ask me to upload files or paste my itinerary and bookings so you can help improve it.',
-                  },
-                ].map((suggestion, i) => (
-                  <button
-                    key={suggestion.label}
-                    type="button"
-                    className="suggestion-chip animate-fade-in"
-                    style={{ animationDelay: `${i * 75}ms` }}
-                    onClick={() => onSend(suggestion.prompt)}
-                    disabled={inputDisabled}
-                  >
-                    {suggestion.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {messages.map((msg, index) => {
-              const isLast = index === messages.length - 1;
-              const isLastAssistantStillWorking = isLast && msg.type === 'assistant' && isLoading;
-              return (
-                <div key={msg.id} className="animate-slide-up" style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
-                  <MessageRenderer message={msg} isLastAndStillWorking={isLastAssistantStillWorking} />
-                </div>
-              );
-            })}
-
-            {isLoading && !hasStreamingAssistant && (
-              <div className="message-card message-assistant p-4 animate-slide-up">
-                <div className="flex items-center gap-3">
-                  <span className="mono-label" style={{ color: 'hsl(var(--text-tertiary))' }}>AGENT</span>
-                  <div className="flex items-center gap-2">
-                    <span className="loading-dots" aria-label="Loading">
-                      <span className="loading-dot" />
-                      <span className="loading-dot" />
-                      <span className="loading-dot" />
-                    </span>
-                    <span style={{ color: 'hsl(var(--text-secondary))', fontSize: '0.85rem' }}>Thinking</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+      <MessageList
+        messages={messages}
+        isLoading={isLoading}
+        tripName={tripName}
+        inputDisabled={inputDisabled}
+        onSend={onSend}
+      />
 
       {/* Message input area */}
       <div className="chat-input-container">
