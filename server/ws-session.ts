@@ -177,6 +177,8 @@ export class ConversationSession {
   private cancelRequested = false;
   private resultSent = false;
   private itineraryMtimeBeforeQuery: number | null = null;
+  private itineraryUpdatedDuringQuery = false;
+  private activeModel: string | null = null;
   private lastUserMessage: string | null = null;
   private activeAllowedTools: Set<string> | null = null;
   private pendingToolActivity = new Map<string, {
@@ -187,6 +189,18 @@ export class ConversationSession {
     startedAt: string;
     completedAt?: string;
   }>();
+  private toolTimings = new Map<string, {
+    id: string;
+    name: string;
+    startedAt: string;
+    startedAtMs: number;
+    inputReadyAt?: string;
+    inputReadyAtMs?: number;
+    inputBytes?: number;
+    contentChars?: number;
+    streamedStart?: boolean;
+  }>();
+  private handledToolResults = new Set<string>();
   private mcpServer: ReturnType<typeof createSdkMcpServer>;
 
   constructor({ tripId, conversationId }: ConversationSessionParams) {
@@ -221,6 +235,8 @@ export class ConversationSession {
     this.cancelRequested = true;
     this.abortController.abort();
     this.pendingToolActivity.clear();
+    this.toolTimings.clear();
+    this.handledToolResults.clear();
     this.resultSent = true;
     this.broadcast({
       type: "result",
@@ -264,6 +280,11 @@ export class ConversationSession {
   }
 
   private async checkAndBroadcastItineraryChange(): Promise<void> {
+    if (this.itineraryUpdatedDuringQuery) {
+      this.itineraryUpdatedDuringQuery = false;
+      this.itineraryMtimeBeforeQuery = null;
+      return;
+    }
     const currentMtime = await this.getItineraryMtime();
     if (this.itineraryMtimeBeforeQuery === null) {
       if (currentMtime !== null) {
@@ -412,6 +433,7 @@ export class ConversationSession {
           // Immediately broadcast that a tool is being called, even before input is complete
           const toolBlock = event.content_block;
           if (!this.isToolAllowedForSession(toolBlock?.name)) return;
+          this.trackToolStart({ id: toolBlock.id, name: toolBlock.name }, true);
           this.broadcast({
             type: "tool_use_start",
             tool: {
@@ -497,6 +519,124 @@ export class ConversationSession {
     });
   }
 
+  private trackToolStart(tool: { id?: string; name?: string }, streamedStart: boolean): void {
+    if (!tool?.id) return;
+    const existing = this.toolTimings.get(tool.id);
+    if (existing) {
+      if (streamedStart) existing.streamedStart = true;
+      if (tool.name && !existing.name) existing.name = tool.name;
+      return;
+    }
+    const startedAtMs = Date.now();
+    const entry = {
+      id: tool.id,
+      name: tool.name ?? "Tool",
+      startedAt: nowIso(),
+      startedAtMs,
+      streamedStart,
+    };
+    this.toolTimings.set(tool.id, entry);
+    logTs(`[ToolStart] id=${entry.id} name=${entry.name} streamed=${streamedStart ? "true" : "false"}`);
+  }
+
+  private extractContentChars(input: Record<string, unknown>): number | null {
+    const candidates = [
+      input.content,
+      input.new_content,
+      input.text,
+      input.value,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === "string") return candidate.length;
+      if (Array.isArray(candidate)) {
+        const text = candidate
+          .map((item) => (item && typeof item === "object" ? (item as Record<string, unknown>).text : null))
+          .filter((item): item is string => typeof item === "string")
+          .join("");
+        if (text) return text.length;
+      }
+      if (candidate && typeof candidate === "object") {
+        const nested = candidate as Record<string, unknown>;
+        const nestedText = typeof nested.content === "string" ? nested.content
+          : typeof nested.text === "string" ? nested.text
+          : typeof nested.value === "string" ? nested.value
+          : null;
+        if (nestedText) return nestedText.length;
+      }
+    }
+    return null;
+  }
+
+  private trackToolInput(tool: { id?: string; name?: string; input?: Record<string, unknown> }): void {
+    if (!tool?.id) return;
+    const input = tool.input ?? {};
+    const inputJson = (() => {
+      try {
+        return JSON.stringify(input);
+      } catch {
+        return null;
+      }
+    })();
+    const inputBytes = inputJson ? Buffer.byteLength(inputJson, "utf8") : undefined;
+    const contentChars = this.extractContentChars(input);
+    const nowMs = Date.now();
+    const existing = this.toolTimings.get(tool.id);
+    if (existing) {
+      if (!existing.inputReadyAtMs) {
+        existing.inputReadyAtMs = nowMs;
+        existing.inputReadyAt = nowIso();
+      }
+      if (inputBytes !== undefined) existing.inputBytes = inputBytes;
+      if (contentChars !== null) existing.contentChars = contentChars;
+      if (tool.name && !existing.name) existing.name = tool.name;
+    } else {
+      this.toolTimings.set(tool.id, {
+        id: tool.id,
+        name: tool.name ?? "Tool",
+        startedAt: nowIso(),
+        startedAtMs: nowMs,
+        inputReadyAt: nowIso(),
+        inputReadyAtMs: nowMs,
+        inputBytes,
+        contentChars: contentChars ?? undefined,
+        streamedStart: false,
+      });
+    }
+    const labelName = tool.name ?? existing?.name ?? "Tool";
+    const sizeLabel = inputBytes !== undefined ? `${inputBytes}b` : "?";
+    const contentLabel = contentChars !== null ? `${contentChars} chars` : "?";
+    logTs(`[ToolInput] id=${tool.id} name=${labelName} bytes=${sizeLabel} content=${contentLabel}`);
+  }
+
+  private logToolEnd(result: any): void {
+    const toolUseId = result?.tool_use_id;
+    if (!toolUseId) return;
+    const timing = this.toolTimings.get(toolUseId);
+    const endMs = Date.now();
+    const isError = Boolean(result?.is_error || result?.isError);
+    const toolName = result?.name ?? result?.tool_name ?? timing?.name ?? "Tool";
+    const totalMs = timing ? endMs - timing.startedAtMs : null;
+    const generationMs = timing?.inputReadyAtMs ? timing.inputReadyAtMs - timing.startedAtMs : null;
+    const executionMs = timing?.inputReadyAtMs ? endMs - timing.inputReadyAtMs : null;
+    const inputBytes = timing?.inputBytes;
+    const contentChars = timing?.contentChars;
+    const formatMs = (value: number | null) => (value === null ? "?" : `${Math.round(value)}ms`);
+    const formatSize = (value?: number) => (value === undefined ? "?" : `${value}b`);
+    const formatChars = (value?: number) => (value === undefined ? "?" : `${value} chars`);
+    logTs(`[ToolEnd] id=${toolUseId} name=${toolName} error=${isError ? "true" : "false"} total=${formatMs(totalMs)} gen=${formatMs(generationMs)} exec=${formatMs(executionMs)} bytes=${formatSize(inputBytes)} content=${formatChars(contentChars)}`);
+    this.toolTimings.delete(toolUseId);
+  }
+
+  private handleToolResultPayload(result: any): void {
+    const toolUseId = result?.tool_use_id;
+    if (!toolUseId || this.handledToolResults.has(toolUseId)) return;
+    this.handledToolResults.add(toolUseId);
+    this.recordToolResult(result);
+    this.handleToolResultSideEffects(result);
+    this.logToolEnd(result);
+    this.broadcastToolResult(result);
+  }
+
   private recordToolResult(result: any) {
     const toolUseId = result?.tool_use_id;
     if (!toolUseId) return;
@@ -518,12 +658,25 @@ export class ConversationSession {
     });
   }
 
-  private handleToolResultSideEffects(toolUseId: string) {
+  private handleToolResultSideEffects(result: any) {
+    const toolUseId = result?.tool_use_id;
+    if (!toolUseId) return;
     const activity = this.pendingToolActivity.get(toolUseId);
-    if (!activity) return;
-    const toolName = normalizeToolName(activity.name);
+    const toolName = normalizeToolName(result?.name ?? result?.tool_name ?? activity?.name ?? "");
+    const isError = Boolean(result?.is_error || result?.isError);
+    if (!toolName || isError) return;
     if (toolName === "update_context") {
       this.broadcast({ type: "context_updated", tripId: this.tripId });
+      return;
+    }
+    if (toolName === "update_itinerary") {
+      this.itineraryUpdatedDuringQuery = true;
+      this.broadcast({
+        type: "itinerary_updated",
+        tripId: this.tripId,
+        source: "tool_result",
+        immediate: true,
+      });
     }
   }
 
@@ -557,7 +710,6 @@ export class ConversationSession {
         const ctxPrompt = await this.buildTripContextPrompt();
         logTs(`[TripContext]\n${ctxPrompt.prompt}`);
         const options = this.sdkSessionId ? { resume: this.sdkSessionId } : {};
-        logTs(`[AgentQuery] Starting query, resume=${!!this.sdkSessionId}`);
 
         const allowReadItinerary = shouldAllowReadItinerary(content, ctxPrompt.itineraryTruncated);
         const allowReadContext = shouldAllowReadContext(content, ctxPrompt.contextTruncated);
@@ -568,6 +720,9 @@ export class ConversationSession {
           ctxPrompt.contextTruncated,
           ctxPrompt.globalContextTruncated,
         );
+        const resolvedModel = this.agentClient.getDefaultModel();
+        this.activeModel = resolvedModel;
+        logTs(`[AgentQuery] Starting query, resume=${!!this.sdkSessionId}, model=${resolvedModel}`);
         const modelPrompt = [
           `Trip already selected: ${ctxPrompt.tripName} (${this.tripId}).`,
           `Do NOT ask which trip or offer to create a new trip.`,
@@ -611,9 +766,13 @@ export class ConversationSession {
         }
       } finally {
         this.activeAllowedTools = null;
+        this.activeModel = null;
         this.queryPromise = null;
         this.abortController = null;
         this.cancelRequested = false;
+        this.itineraryUpdatedDuringQuery = false;
+        this.toolTimings.clear();
+        this.handledToolResults.clear();
         // Ensure a result is always sent so the client knows the query is done
         if (!this.resultSent) {
           this.resultSent = true;
@@ -683,14 +842,16 @@ export class ConversationSession {
 
     if (messageType === "assistant") {
       const toolBlocks = (message as any)?.message?.content;
-        if (Array.isArray(toolBlocks)) {
-          for (const block of toolBlocks) {
-            if (block?.type === "tool_use") {
-              this.broadcastToolUse(block);
-              this.recordToolUse(block);
-            }
+      if (Array.isArray(toolBlocks)) {
+        for (const block of toolBlocks) {
+          if (block?.type === "tool_use") {
+            this.trackToolStart({ id: block.id, name: block.name }, false);
+            this.trackToolInput({ id: block.id, name: block.name, input: block.input ?? {} });
+            this.broadcastToolUse(block);
+            this.recordToolUse(block);
           }
         }
+      }
       const text = joinAssistantText(message);
       const cleanedText = text ? sanitizeAssistantText(text) : "";
       if (cleanedText) {
@@ -713,16 +874,14 @@ export class ConversationSession {
     }
 
     if (messageType === "tool_result") {
-      this.recordToolResult(message);
-      const toolUseId = (message as any)?.tool_use_id;
-      if (toolUseId) this.handleToolResultSideEffects(toolUseId);
-      this.broadcastToolResult(message);
+      this.handleToolResultPayload(message);
       return;
     }
 
     if (messageType === "result") {
       const subtype = (message as any).subtype;
-      logTs(`[Result] ${subtype}, cost=$${(message as any).total_cost_usd?.toFixed(4) ?? "?"}, duration=${(message as any).duration_ms ?? "?"}ms`);
+      const modelLabel = this.activeModel ?? "unknown";
+      logTs(`[Result] ${subtype}, model=${modelLabel}, cost=$${(message as any).total_cost_usd?.toFixed(4) ?? "?"}, duration=${(message as any).duration_ms ?? "?"}ms`);
       if (this.resultSent) return;
       this.resultSent = true;
       if (subtype === "success") {
@@ -753,6 +912,19 @@ export class ConversationSession {
         : JSON.stringify(content, null, 2);
       logTs(`[SDKUserMessage] Full message structure:`);
       logTs(JSON.stringify(message, null, 2).slice(0, 2000));
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block?.type === "tool_result" && block?.tool_use_id) {
+            const activity = this.pendingToolActivity.get(block.tool_use_id);
+            const enriched = {
+              ...block,
+              name: block?.name ?? activity?.name,
+              tool_name: block?.tool_name ?? activity?.name,
+            };
+            this.handleToolResultPayload(enriched);
+          }
+        }
+      }
       return;
     }
 

@@ -182,6 +182,10 @@ If you cannot verify something, say so clearly rather than guessing.`,
     this.defaultOptions.env = buildVenvEnv(this.defaultOptions.env);
   }
 
+  getDefaultModel(): string {
+    return this.defaultOptions.model ?? "unknown";
+  }
+
   async *queryStream(
     prompt: string | AsyncIterable<SDKUserMessage>,
     options?: Partial<AgentQueryOptions>

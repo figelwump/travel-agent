@@ -455,6 +455,12 @@ const App: React.FC = () => {
         }
         case 'itinerary_updated': {
           if (message.tripId !== activeTripId) break;
+          const immediate = Boolean(message.immediate);
+          if (immediate) {
+            pendingItineraryRefreshRef.current = false;
+            refreshItinerary();
+            break;
+          }
           if (queryInProgressRef.current) {
             pendingItineraryRefreshRef.current = true;
             break;
