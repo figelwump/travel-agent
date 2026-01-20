@@ -663,71 +663,6 @@ const App: React.FC = () => {
     setDraftHeightsByTrip({});
   };
 
-  if (!credentials) {
-    return (
-      <div className="flex items-center justify-center min-h-screen relative overflow-hidden" style={{ background: 'hsl(var(--bg-primary))' }}>
-        {/* Decorative background elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 -left-32 w-64 h-64 rounded-full opacity-30"
-               style={{ background: 'radial-gradient(circle, hsl(var(--accent-primary) / 0.15) 0%, transparent 70%)' }} />
-          <div className="absolute bottom-1/4 -right-32 w-96 h-96 rounded-full opacity-20"
-               style={{ background: 'radial-gradient(circle, hsl(225 50% 30% / 0.2) 0%, transparent 70%)' }} />
-        </div>
-
-        <div className="terminal-container max-w-sm w-full mx-4 p-8 animate-scale-in relative z-10">
-          {/* Travel icon */}
-          <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center"
-                 style={{ background: 'linear-gradient(135deg, hsl(var(--accent-primary) / 0.15) 0%, hsl(var(--accent-primary) / 0.05) 100%)' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
-                   style={{ color: 'hsl(var(--accent-primary))' }}>
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                <path d="M14.05 2a9 9 0 0 1 8 7.94M14.05 6A5 5 0 0 1 18 10" />
-              </svg>
-            </div>
-          </div>
-
-          <h1 className="header-display text-2xl text-center mb-2" style={{ color: 'hsl(var(--text-primary))' }}>
-            Travel Agent
-          </h1>
-          <p className="text-center mb-6" style={{ color: 'hsl(var(--text-secondary))', fontSize: '0.9rem' }}>
-            Your personal trip planning assistant
-          </p>
-
-          {connectionError && (
-            <div className="mb-5 p-3.5 rounded-lg animate-slide-up"
-                 style={{ background: 'hsl(var(--error) / 0.1)', border: '1px solid hsl(var(--error) / 0.2)' }}>
-              <p className="text-sm text-center" style={{ color: 'hsl(var(--error))' }}>
-                {connectionError}
-              </p>
-            </div>
-          )}
-
-          <form onSubmit={handleCredentialsSubmit} className="space-y-4">
-            <div>
-              <label className="mono-label block mb-2">Password</label>
-              <input
-                type="password"
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                placeholder="Enter access password"
-                className="input-terminal w-full"
-                autoFocus
-              />
-            </div>
-            <button type="submit" className="btn-primary w-full py-3">
-              Continue
-            </button>
-          </form>
-
-          <p className="text-center mt-6" style={{ color: 'hsl(var(--text-tertiary))', fontSize: '0.75rem' }}>
-            Secure connection to your travel planning workspace
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   const canType = Boolean(isConnected && activeTripId && activeConversationId);
 
   const handleCreateTrip = () => {
@@ -888,6 +823,71 @@ const App: React.FC = () => {
     const msg = `Uploaded files:\n- ${uploaded.join('\n- ')}`;
     handleSendUserText(msg + `\n\n(Stored in ~/.travelagent/trips/${activeTripId}/uploads/)`);
   }, [activeTripId, activeConversationId, credentials, handleSendUserText]);
+
+  if (!credentials) {
+    return (
+      <div className="flex items-center justify-center min-h-screen relative overflow-hidden" style={{ background: 'hsl(var(--bg-primary))' }}>
+        {/* Decorative background elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/4 -left-32 w-64 h-64 rounded-full opacity-30"
+               style={{ background: 'radial-gradient(circle, hsl(var(--accent-primary) / 0.15) 0%, transparent 70%)' }} />
+          <div className="absolute bottom-1/4 -right-32 w-96 h-96 rounded-full opacity-20"
+               style={{ background: 'radial-gradient(circle, hsl(225 50% 30% / 0.2) 0%, transparent 70%)' }} />
+        </div>
+
+        <div className="terminal-container max-w-sm w-full mx-4 p-8 animate-scale-in relative z-10">
+          {/* Travel icon */}
+          <div className="flex justify-center mb-6">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center"
+                 style={{ background: 'linear-gradient(135deg, hsl(var(--accent-primary) / 0.15) 0%, hsl(var(--accent-primary) / 0.05) 100%)' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+                   style={{ color: 'hsl(var(--accent-primary))' }}>
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                <path d="M14.05 2a9 9 0 0 1 8 7.94M14.05 6A5 5 0 0 1 18 10" />
+              </svg>
+            </div>
+          </div>
+
+          <h1 className="header-display text-2xl text-center mb-2" style={{ color: 'hsl(var(--text-primary))' }}>
+            Travel Agent
+          </h1>
+          <p className="text-center mb-6" style={{ color: 'hsl(var(--text-secondary))', fontSize: '0.9rem' }}>
+            Your personal trip planning assistant
+          </p>
+
+          {connectionError && (
+            <div className="mb-5 p-3.5 rounded-lg animate-slide-up"
+                 style={{ background: 'hsl(var(--error) / 0.1)', border: '1px solid hsl(var(--error) / 0.2)' }}>
+              <p className="text-sm text-center" style={{ color: 'hsl(var(--error))' }}>
+                {connectionError}
+              </p>
+            </div>
+          )}
+
+          <form onSubmit={handleCredentialsSubmit} className="space-y-4">
+            <div>
+              <label className="mono-label block mb-2">Password</label>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="Enter access password"
+                className="input-terminal w-full"
+                autoFocus
+              />
+            </div>
+            <button type="submit" className="btn-primary w-full py-3">
+              Continue
+            </button>
+          </form>
+
+          <p className="text-center mt-6" style={{ color: 'hsl(var(--text-tertiary))', fontSize: '0.75rem' }}>
+            Secure connection to your travel planning workspace
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen" style={{ background: 'hsl(var(--bg-primary))' }}>
