@@ -17,15 +17,9 @@ ANTHROPIC_API_KEY=sk-... DISABLE_AUTH=true bun run dev
 
 ## Testing Changes
 
-Prefer validating bug fixes and feature work via the CLI session runner first. Only use the Playwright MCP when changes affect the UI or require browser-only verification. When you do use Playwright, verify changes both visually and functionally:
+Prefer validating bug fixes and feature work via the CLI session runner first. Only use the browser when changes affect the UI or require browser-only verification. When you do need to test in-browser, use the `/agent-browser` skill to verify changes both visually and functionally.
 
-1. Start the dev server if not already running
-2. Use `browser_navigate` to open `http://localhost:3001`
-3. Use `browser_snapshot` to inspect the UI state
-4. Interact with the app using `browser_click`, `browser_type`, etc.
-5. Verify the fix/feature works as expected end-to-end
-
-When testing with Playwright:
+When testing in-browser:
 - Start a test server on a different port (e.g., `PORT=3002 DISABLE_AUTH=true bun run dev`)
 - Test against that port (e.g., `http://localhost:3002`)
 - Only kill the server you started when done testing
