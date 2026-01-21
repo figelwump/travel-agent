@@ -772,8 +772,12 @@
   transition: all 0.2s ease;
 }
 
-.chat-list-item:hover .chat-delete-btn,
-.chat-list-item:focus-within .chat-delete-btn {
+.chat-list-item:hover .chat-delete-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat-delete-btn:focus-visible {
   opacity: 1;
   pointer-events: auto;
 }
