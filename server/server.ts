@@ -95,6 +95,13 @@ function guessContentType(filePath: string): string {
   return "text/plain";
 }
 
+function isAppRoute(pathname: string): boolean {
+  if (pathname === "/ws") return false;
+  if (pathname.startsWith("/api/")) return false;
+  if (pathname.startsWith("/web/")) return false;
+  return true;
+}
+
 async function serveCss(filePath: string, origin: string | null): Promise<Response | null> {
   try {
     const file = Bun.file(filePath);
@@ -208,17 +215,6 @@ const server = Bun.serve({
       return handleApiRequest(req, url, { origin, allowedOriginHeader });
     }
 
-    if (url.pathname === "/" || url.pathname === "/index.html") {
-      const indexPath = path.join(webClientRoot, "index.html");
-      try {
-        const file = await fs.readFile(indexPath);
-        return new Response(file, { headers: createHeaders("text/html", { origin, allowedOriginHeader }) });
-      } catch (error) {
-        console.error("Failed to read index.html", error);
-        return new Response("index.html not found", { status: 500, headers: createHeaders(undefined, { origin, allowedOriginHeader }) });
-      }
-    }
-
     if (url.pathname.startsWith("/web/") && url.pathname.endsWith(".css")) {
       const filePath = resolveWebClientPath(url.pathname);
       if (!filePath) return new Response("Not Found", { status: 404, headers: createHeaders(undefined, { origin, allowedOriginHeader }) });
@@ -247,6 +243,18 @@ const server = Bun.serve({
       return jsonResponse({
         error: "Please connect via WebSocket at /ws",
       }, 400, { origin, allowedOriginHeader });
+    }
+
+    // Serve HTML shell for app routes (deep linking support)
+    if (isAppRoute(url.pathname)) {
+      const indexPath = path.join(webClientRoot, "index.html");
+      try {
+        const file = await fs.readFile(indexPath);
+        return new Response(file, { headers: createHeaders("text/html", { origin, allowedOriginHeader }) });
+      } catch (error) {
+        console.error("Failed to read index.html", error);
+        return new Response("index.html not found", { status: 500, headers: createHeaders(undefined, { origin, allowedOriginHeader }) });
+      }
     }
 
     return new Response("Not Found", { status: 404, headers: createHeaders(undefined, { origin, allowedOriginHeader }) });

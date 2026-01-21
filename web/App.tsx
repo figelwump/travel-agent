@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWebSocket } from "./hooks/useWebSocket";
+import { useUrlRouter } from "./hooks/useUrlRouter";
 import { Message, TextBlock, ToolActivity } from "./components/message/types";
 import { ChatPanel } from "./components/ChatPanel";
 import { ItineraryPane } from "./components/ItineraryPane";
@@ -8,6 +9,7 @@ const createTextBlock = (text: string): TextBlock => ({ type: 'text', text });
 
 type Credentials = { password: string };
 const CREDENTIALS_STORAGE_KEY = 'travelagent:auth';
+const NOTIFICATIONS_STORAGE_KEY = 'travelagent:notifications';
 
 type Trip = { id: string; name: string; createdAt: string; updatedAt: string };
 type Conversation = { id: string; tripId: string; title: string; createdAt: string; updatedAt: string; sdkSessionId?: string | null };
@@ -40,6 +42,13 @@ const ChatBubbleIcon = () => (
 const TrashIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z" />
+  </svg>
+);
+
+const BellIcon = ({ enabled }: { enabled: boolean }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill={enabled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
   </svg>
 );
 
@@ -96,6 +105,40 @@ const App: React.FC = () => {
   const [showNewTripModal, setShowNewTripModal] = useState(false);
   const [newTripName, setNewTripName] = useState('');
   const newTripInputRef = useRef<HTMLInputElement>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+
+  // URL routing - store initial route from URL on mount
+  const initialRouteRef = useRef<{ tripId: string | null; conversationId: string | null } | null>(null);
+  const urlSyncEnabledRef = useRef(false);
+  const pendingRouteRef = useRef<{ tripId: string | null; conversationId: string | null } | null>(null);
+
+  // Handle browser back/forward navigation
+  const handlePopState = useCallback((route: { tripId: string | null; conversationId: string | null }) => {
+    if (!urlSyncEnabledRef.current) return;
+
+    setActiveTripId(prevTripId => {
+      if (route.tripId === prevTripId) {
+        pendingRouteRef.current = null;
+        return prevTripId;
+      }
+      pendingRouteRef.current = route.tripId ? route : null;
+      return route.tripId;
+    });
+
+    setActiveConversationId(prevConversationId => {
+      if (route.conversationId === prevConversationId) return prevConversationId;
+      return route.conversationId;
+    });
+  }, []);
+
+  const { getInitialRoute, navigate, syncUrl } = useUrlRouter(handlePopState);
+
+  // Capture initial route on mount
+  useEffect(() => {
+    if (initialRouteRef.current === null) {
+      initialRouteRef.current = getInitialRoute();
+    }
+  }, [getInitialRoute]);
 
   const activeDraft = useMemo(() => {
     if (!activeTripId) return '';
@@ -442,6 +485,13 @@ const App: React.FC = () => {
           } else {
             console.error('Query failed:', message.error);
           }
+          // Send browser notification if tab is hidden and notifications are enabled
+          if (document.hidden && notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
+            new Notification('Travel Agent', {
+              body: message.success ? 'Response ready' : 'Something went wrong',
+              tag: 'travel-agent-response', // Prevents duplicate notifications
+            });
+          }
           streamingMessageIdRef.current = null;
           setIsLoading(false);
           queryInProgressRef.current = false;
@@ -534,7 +584,35 @@ const App: React.FC = () => {
         window.localStorage.removeItem(CREDENTIALS_STORAGE_KEY);
       }
     }
+    // Load notification preference
+    const notifPref = window.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+    if (notifPref === 'true' && 'Notification' in window && Notification.permission === 'granted') {
+      setNotificationsEnabled(true);
+    }
   }, []);
+
+  const toggleNotifications = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+
+    if (notificationsEnabled) {
+      // Disable notifications
+      setNotificationsEnabled(false);
+      window.localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, 'false');
+      return;
+    }
+
+    // Enable notifications - request permission if needed
+    if (Notification.permission === 'granted') {
+      setNotificationsEnabled(true);
+      window.localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, 'true');
+    } else if (Notification.permission !== 'denied') {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setNotificationsEnabled(true);
+        window.localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, 'true');
+      }
+    }
+  };
 
   const refreshTrips = async () => {
     const res = await apiFetch<Trip[]>('/api/trips', { method: 'GET' }, credentials);
@@ -543,16 +621,62 @@ const App: React.FC = () => {
       return;
     }
     setTrips(res.data);
+
+    // Handle initial URL routing on first load
+    const initialRoute = initialRouteRef.current;
+    if (initialRoute && res.data.length > 0) {
+      // Clear initial route so we don't re-apply it
+      initialRouteRef.current = null;
+
+      if (initialRoute.tripId) {
+        // Validate URL trip ID
+        const validTrip = res.data.find(t => t.id === initialRoute.tripId);
+        if (validTrip) {
+          setActiveTripId(initialRoute.tripId);
+        } else {
+          // Invalid trip ID - redirect to first trip
+          setActiveTripId(res.data[0].id);
+          syncUrl(res.data[0].id, null);
+        }
+      } else {
+        // No trip in URL - select first and sync URL
+        setActiveTripId(res.data[0].id);
+        syncUrl(res.data[0].id, null);
+      }
+      return;
+    }
+
+    // Normal refresh - keep current selection if valid
     if (!activeTripId && res.data.length > 0) {
       setActiveTripId(res.data[0].id);
     }
   };
 
-  const refreshConversations = async (tripId: string) => {
+  const refreshConversations = async (tripId: string, options?: { initialConversationId?: string | null }) => {
     const res = await apiFetch<Conversation[]>(`/api/trips/${tripId}/conversations`, { method: 'GET' }, credentials);
     if (!res.ok) return;
     setConversations(res.data);
-    if (!activeConversationId && res.data.length > 0) setActiveConversationId(res.data[0].id);
+
+    // Handle URL-based conversation selection on initial load
+    if (options?.initialConversationId) {
+      const validConversation = res.data.find(c => c.id === options.initialConversationId);
+      if (validConversation) {
+        setActiveConversationId(options.initialConversationId);
+        urlSyncEnabledRef.current = true;
+        return;
+      }
+      // Invalid conversation ID - fall through to use most recent
+    }
+
+    // Use most recent conversation if available
+    if (res.data.length > 0) {
+      setActiveConversationId(res.data[0].id);
+    }
+
+    // Enable URL syncing after initial route is resolved
+    if (options?.initialConversationId !== undefined) {
+      urlSyncEnabledRef.current = true;
+    }
   };
 
   const refreshMessages = async (tripId: string, conversationId: string) => {
@@ -589,6 +713,22 @@ const App: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [credentials]);
 
+  // Track the initial conversation ID to apply on first load
+  const pendingInitialConversationIdRef = useRef<string | null | undefined>(undefined);
+
+  const handleSelectTrip = useCallback((tripId: string) => {
+    if (tripId === activeTripId) return;
+    navigate(tripId, null);
+    setActiveTripId(tripId);
+  }, [activeTripId, navigate]);
+
+  const handleSelectConversation = useCallback((conversationId: string) => {
+    if (!activeTripId) return;
+    if (conversationId === activeConversationId) return;
+    navigate(activeTripId, conversationId);
+    setActiveConversationId(conversationId);
+  }, [activeTripId, activeConversationId, navigate]);
+
   useEffect(() => {
     if (!credentials || !activeTripId) return;
     pendingItineraryRefreshRef.current = false;
@@ -601,7 +741,26 @@ const App: React.FC = () => {
     streamingMessageIdRef.current = null;
     toolActivityMessageIdRef.current = null;
     toolUseToMessageRef.current = {};
-    refreshConversations(activeTripId);
+
+    // Check if we should apply initial URL route
+    // pendingInitialConversationIdRef is undefined initially, then set to null after first use
+    let initialConversationId: string | null | undefined = undefined;
+    const pendingRoute = pendingRouteRef.current;
+    if (pendingRoute && pendingRoute.tripId === activeTripId) {
+      initialConversationId = pendingRoute.conversationId ?? null;
+      pendingRouteRef.current = null;
+    } else if (pendingInitialConversationIdRef.current === undefined && initialRouteRef.current === null) {
+      // Initial route was already consumed by refreshTrips, get the conversation ID from URL
+      const currentRoute = getInitialRoute();
+      if (currentRoute.tripId === activeTripId && currentRoute.conversationId) {
+        initialConversationId = currentRoute.conversationId;
+      } else {
+        initialConversationId = null; // Signal this is initial load but no specific conversation
+      }
+      pendingInitialConversationIdRef.current = null; // Mark as used
+    }
+
+    refreshConversations(activeTripId, initialConversationId !== undefined ? { initialConversationId } : undefined);
     refreshItinerary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTripId, credentials]);
@@ -610,6 +769,12 @@ const App: React.FC = () => {
     if (!activeTripId || activeConversationId || conversations.length === 0) return;
     setActiveConversationId(conversations[0].id);
   }, [activeTripId, activeConversationId, conversations]);
+
+  // Sync URL when active trip/conversation changes (after initial route applied)
+  useEffect(() => {
+    if (!urlSyncEnabledRef.current) return;
+    syncUrl(activeTripId, activeConversationId);
+  }, [activeTripId, activeConversationId, syncUrl]);
 
   useEffect(() => {
     if (!activeTripId || !activeConversationId || !credentials) return;
@@ -682,7 +847,6 @@ const App: React.FC = () => {
       return;
     }
     await refreshTrips();
-    setActiveTripId(res.data.id);
 
     const convRes = await apiFetch<Conversation>(
       `/api/trips/${res.data.id}/conversations`,
@@ -691,11 +855,18 @@ const App: React.FC = () => {
     );
     if (convRes.ok) {
       await refreshConversations(res.data.id);
-      setActiveConversationId(convRes.data.id);
       setMessages([]);
       toolActivityMessageIdRef.current = null;
       toolUseToMessageRef.current = {};
       setIsLoading(false);
+      // Navigate to new trip/conversation (adds to history)
+      navigate(res.data.id, convRes.data.id);
+      setActiveTripId(res.data.id);
+      setActiveConversationId(convRes.data.id);
+    } else {
+      // Navigate to trip without conversation
+      navigate(res.data.id, null);
+      setActiveTripId(res.data.id);
     }
   };
 
@@ -728,9 +899,13 @@ const App: React.FC = () => {
     });
 
     if (remaining.length > 0) {
+      // Navigate to next trip
+      navigate(remaining[0].id, null);
       setActiveTripId(remaining[0].id);
       return;
     }
+    // No trips remaining - navigate to root
+    navigate(null, null);
     setActiveTripId(null);
     setConversations([]);
     setActiveConversationId(null);
@@ -750,6 +925,8 @@ const App: React.FC = () => {
       return;
     }
     await refreshConversations(activeTripId);
+    // Navigate to new conversation (adds to history)
+    navigate(activeTripId, res.data.id);
     setActiveConversationId(res.data.id);
     setMessages([]);
   };
@@ -766,6 +943,8 @@ const App: React.FC = () => {
       return;
     }
     await refreshConversations(activeTripId);
+    // Navigate to new conversation (adds to history)
+    navigate(activeTripId, res.data.id);
     setActiveConversationId(res.data.id);
     streamingMessageIdRef.current = null;
     toolActivityMessageIdRef.current = null;
@@ -776,7 +955,7 @@ const App: React.FC = () => {
     const userMessage: Message = { id: Date.now().toString(), type: 'user', content: prompt, timestamp };
     setMessages([userMessage]);
     sendMessage({ type: 'chat', tripId: activeTripId, conversationId: res.data.id, content: prompt });
-  }, [activeTripId, credentials, sendMessage]);
+  }, [activeTripId, credentials, sendMessage, navigate]);
 
   const handleSendUserText = useCallback((text: string) => {
     if (!activeTripId || !activeConversationId) return;
@@ -920,6 +1099,20 @@ const App: React.FC = () => {
               <span className="text-xs" style={{ color: 'hsl(var(--text-tertiary))' }}>
                 {isConnected ? 'Connected' : 'Connecting...'}
               </span>
+              {'Notification' in window && (
+                <button
+                  type="button"
+                  onClick={toggleNotifications}
+                  className="ml-2 p-1.5 rounded-md transition-colors"
+                  style={{
+                    color: notificationsEnabled ? 'hsl(var(--accent-primary))' : 'hsl(var(--text-tertiary))',
+                    background: notificationsEnabled ? 'hsl(var(--accent-primary) / 0.1)' : 'transparent',
+                  }}
+                  title={notificationsEnabled ? 'Notifications enabled (click to disable)' : 'Enable notifications when response is ready'}
+                >
+                  <BellIcon enabled={notificationsEnabled} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -937,7 +1130,7 @@ const App: React.FC = () => {
                     type="button"
                     className={`trip-pill animate-fade-in ${t.id === activeTripId ? 'active' : ''}`}
                     style={{ animationDelay: `${i * 50}ms` }}
-                    onClick={() => setActiveTripId(t.id)}
+                    onClick={() => handleSelectTrip(t.id)}
                   >
                     {t.name}
                   </button>
@@ -1011,7 +1204,7 @@ const App: React.FC = () => {
                     key={c.id}
                     type="button"
                     className={`chat-list-item ${c.id === activeConversationId ? 'active' : ''}`}
-                    onClick={() => setActiveConversationId(c.id)}
+                    onClick={() => handleSelectConversation(c.id)}
                   >
                     <span className="chat-list-title">{c.title}</span>
                     <span className="chat-list-date">
