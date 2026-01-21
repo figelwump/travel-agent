@@ -684,17 +684,31 @@
 
 .chat-list-item {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  gap: 0.5rem;
   width: 100%;
-  padding: 0.875rem 1rem;
+  padding: 0.875rem 0.75rem 0.875rem 1rem;
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  cursor: pointer;
   transition: all 0.2s ease;
   text-align: left;
   position: relative;
+}
+
+.chat-list-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
 }
 
 .chat-list-item::before {
@@ -741,7 +755,38 @@
 .chat-list-date {
   font-size: 0.7rem;
   color: hsl(var(--text-tertiary));
-  margin-top: 0.25rem;
+}
+
+.chat-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: hsl(var(--text-tertiary));
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s ease;
+}
+
+.chat-list-item:hover .chat-delete-btn,
+.chat-list-item:focus-within .chat-delete-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat-delete-btn:hover {
+  color: hsl(var(--error));
+  background: hsl(var(--error) / 0.1);
+  border-color: hsl(var(--error) / 0.2);
+}
+
+.chat-delete-btn:focus-visible {
+  outline: 2px solid hsl(var(--accent-primary));
+  outline-offset: 2px;
 }
 
 .new-chat-btn {

@@ -180,6 +180,7 @@ const App: React.FC = () => {
 
   const activeTrip = useMemo(() => trips.find(t => t.id === activeTripId) ?? null, [trips, activeTripId]);
   const activeConversation = useMemo(() => conversations.find(c => c.id === activeConversationId) ?? null, [conversations, activeConversationId]);
+  const activeTripName = activeTrip?.name ?? null;
 
   // Single WebSocket connection for all components
   const { isConnected, sendMessage } = useWebSocket({
@@ -636,12 +637,12 @@ const App: React.FC = () => {
         } else {
           // Invalid trip ID - redirect to first trip
           setActiveTripId(res.data[0].id);
-          syncUrl(res.data[0].id, null);
+          syncUrl(res.data[0].id, null, res.data[0].name);
         }
       } else {
         // No trip in URL - select first and sync URL
         setActiveTripId(res.data[0].id);
-        syncUrl(res.data[0].id, null);
+        syncUrl(res.data[0].id, null, res.data[0].name);
       }
       return;
     }
@@ -718,16 +719,17 @@ const App: React.FC = () => {
 
   const handleSelectTrip = useCallback((tripId: string) => {
     if (tripId === activeTripId) return;
-    navigate(tripId, null);
+    const tripName = trips.find(t => t.id === tripId)?.name ?? null;
+    navigate(tripId, null, { tripName });
     setActiveTripId(tripId);
-  }, [activeTripId, navigate]);
+  }, [activeTripId, navigate, trips]);
 
   const handleSelectConversation = useCallback((conversationId: string) => {
     if (!activeTripId) return;
     if (conversationId === activeConversationId) return;
-    navigate(activeTripId, conversationId);
+    navigate(activeTripId, conversationId, { tripName: activeTripName });
     setActiveConversationId(conversationId);
-  }, [activeTripId, activeConversationId, navigate]);
+  }, [activeTripId, activeConversationId, navigate, activeTripName]);
 
   useEffect(() => {
     if (!credentials || !activeTripId) return;
@@ -773,8 +775,8 @@ const App: React.FC = () => {
   // Sync URL when active trip/conversation changes (after initial route applied)
   useEffect(() => {
     if (!urlSyncEnabledRef.current) return;
-    syncUrl(activeTripId, activeConversationId);
-  }, [activeTripId, activeConversationId, syncUrl]);
+    syncUrl(activeTripId, activeConversationId, activeTripName);
+  }, [activeTripId, activeConversationId, activeTripName, syncUrl]);
 
   useEffect(() => {
     if (!activeTripId || !activeConversationId || !credentials) return;
@@ -860,12 +862,12 @@ const App: React.FC = () => {
       toolUseToMessageRef.current = {};
       setIsLoading(false);
       // Navigate to new trip/conversation (adds to history)
-      navigate(res.data.id, convRes.data.id);
+      navigate(res.data.id, convRes.data.id, { tripName: res.data.name });
       setActiveTripId(res.data.id);
       setActiveConversationId(convRes.data.id);
     } else {
       // Navigate to trip without conversation
-      navigate(res.data.id, null);
+      navigate(res.data.id, null, { tripName: res.data.name });
       setActiveTripId(res.data.id);
     }
   };
@@ -900,7 +902,7 @@ const App: React.FC = () => {
 
     if (remaining.length > 0) {
       // Navigate to next trip
-      navigate(remaining[0].id, null);
+      navigate(remaining[0].id, null, { tripName: remaining[0].name });
       setActiveTripId(remaining[0].id);
       return;
     }
@@ -926,9 +928,43 @@ const App: React.FC = () => {
     }
     await refreshConversations(activeTripId);
     // Navigate to new conversation (adds to history)
-    navigate(activeTripId, res.data.id);
+    navigate(activeTripId, res.data.id, { tripName: activeTripName });
     setActiveConversationId(res.data.id);
     setMessages([]);
+  };
+
+  const handleDeleteConversation = async (conversation: Conversation) => {
+    if (!activeTripId || !credentials) return;
+    const title = conversation.title?.trim() || 'this chat';
+    const okToDelete = confirm(`Delete "${title}"? This will remove this chat's history. This cannot be undone.`);
+    if (!okToDelete) return;
+    const res = await apiFetch<{ ok: true }>(
+      `/api/trips/${activeTripId}/conversations/${conversation.id}`,
+      { method: 'DELETE' },
+      credentials
+    );
+    if (!res.ok) {
+      alert(`Delete failed: ${res.error}`);
+      return;
+    }
+
+    const remaining = conversations.filter(c => c.id !== conversation.id);
+    setConversations(remaining);
+
+    if (conversation.id === activeConversationId) {
+      if (remaining.length > 0) {
+        navigate(activeTripId, remaining[0].id, { tripName: activeTripName });
+        setActiveConversationId(remaining[0].id);
+      } else {
+        navigate(activeTripId, null, { tripName: activeTripName });
+        setActiveConversationId(null);
+        setMessages([]);
+        setIsLoading(false);
+        streamingMessageIdRef.current = null;
+        toolActivityMessageIdRef.current = null;
+        toolUseToMessageRef.current = {};
+      }
+    }
   };
 
   const handleStartConversationWithPrompt = useCallback(async (prompt: string, title?: string) => {
@@ -944,7 +980,7 @@ const App: React.FC = () => {
     }
     await refreshConversations(activeTripId);
     // Navigate to new conversation (adds to history)
-    navigate(activeTripId, res.data.id);
+    navigate(activeTripId, res.data.id, { tripName: activeTripName });
     setActiveConversationId(res.data.id);
     streamingMessageIdRef.current = null;
     toolActivityMessageIdRef.current = null;
@@ -1200,17 +1236,33 @@ const App: React.FC = () => {
             ) : (
               <div className="chat-list">
                 {conversations.map(c => (
-                  <button
+                  <div
                     key={c.id}
-                    type="button"
                     className={`chat-list-item ${c.id === activeConversationId ? 'active' : ''}`}
-                    onClick={() => handleSelectConversation(c.id)}
                   >
-                    <span className="chat-list-title">{c.title}</span>
-                    <span className="chat-list-date">
-                      {new Date(c.createdAt).toLocaleDateString()}
-                    </span>
-                  </button>
+                    <button
+                      type="button"
+                      className="chat-list-main"
+                      onClick={() => handleSelectConversation(c.id)}
+                    >
+                      <span className="chat-list-title">{c.title}</span>
+                      <span className="chat-list-date">
+                        {new Date(c.createdAt).toLocaleDateString()}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="chat-delete-btn"
+                      title="Delete chat"
+                      aria-label={`Delete ${c.title}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleDeleteConversation(c);
+                      }}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
