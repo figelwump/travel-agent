@@ -4,6 +4,7 @@ import { useUrlRouter } from "./hooks/useUrlRouter";
 import { Message, TextBlock, ToolActivity } from "./components/message/types";
 import { ChatPanel } from "./components/ChatPanel";
 import { ItineraryPane } from "./components/ItineraryPane";
+import { RemindersPane } from "./RemindersPane";
 
 const createTextBlock = (text: string): TextBlock => ({ type: 'text', text });
 
@@ -99,6 +100,7 @@ const App: React.FC = () => {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [itineraryMarkdown, setItineraryMarkdown] = useState<string>('');
   const [showItinerary, setShowItinerary] = useState(true);
+  const [rightPaneView, setRightPaneView] = useState<'itinerary' | 'reminders'>('itinerary');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [draftsByTrip, setDraftsByTrip] = useState<Record<string, string>>({});
   const [draftHeightsByTrip, setDraftHeightsByTrip] = useState<Record<string, number>>({});
@@ -1315,21 +1317,48 @@ const App: React.FC = () => {
             />
           </div>
 
-          {/* Itinerary Pane */}
+          {/* Right-side Pane */}
           {showItinerary && (
-            <div className="terminal-container overflow-hidden flex-1">
-              <ItineraryPane
-                tripId={activeTripId}
-                credentials={credentials}
-                markdown={itineraryMarkdown}
-                onRefresh={refreshItinerary}
-                onRequestMap={activeTripId ? () => handleStartConversationWithPrompt(mapRequestPrompt, 'Trip map') : undefined}
-                onRegenerateItinerary={activeTripId ? handleRegenerateItinerary : undefined}
-                onDeleteTrip={handleDeleteTrip}
-                onCollapse={() => setShowItinerary(false)}
-                tripCreatedAt={activeTrip?.createdAt ?? null}
-                tripUpdatedAt={activeTrip?.updatedAt ?? null}
-              />
+            <div className="terminal-container overflow-hidden flex-1 flex flex-col">
+              <div className="pane-switcher">
+                <button
+                  type="button"
+                  className={`pane-switcher-btn ${rightPaneView === 'itinerary' ? 'active' : ''}`}
+                  onClick={() => setRightPaneView('itinerary')}
+                >
+                  Itinerary
+                </button>
+                <button
+                  type="button"
+                  className={`pane-switcher-btn ${rightPaneView === 'reminders' ? 'active' : ''}`}
+                  onClick={() => setRightPaneView('reminders')}
+                >
+                  Reminders
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                {rightPaneView === 'itinerary' ? (
+                  <ItineraryPane
+                    tripId={activeTripId}
+                    credentials={credentials}
+                    markdown={itineraryMarkdown}
+                    onRefresh={refreshItinerary}
+                    onRequestMap={activeTripId ? () => handleStartConversationWithPrompt(mapRequestPrompt, 'Trip map') : undefined}
+                    onRegenerateItinerary={activeTripId ? handleRegenerateItinerary : undefined}
+                    onDeleteTrip={handleDeleteTrip}
+                    onCollapse={() => setShowItinerary(false)}
+                    tripCreatedAt={activeTrip?.createdAt ?? null}
+                    tripUpdatedAt={activeTrip?.updatedAt ?? null}
+                  />
+                ) : (
+                  <RemindersPane
+                    credentials={credentials}
+                    trips={trips}
+                    activeTripId={activeTripId}
+                    onCollapse={() => setShowItinerary(false)}
+                  />
+                )}
+              </div>
             </div>
           )}
 
@@ -1339,7 +1368,7 @@ const App: React.FC = () => {
               type="button"
               className="itinerary-expand-btn"
               onClick={() => setShowItinerary(true)}
-              title="Show itinerary"
+              title={rightPaneView === 'itinerary' ? "Show itinerary" : "Show reminders"}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />

@@ -146,6 +146,57 @@ describe("api conversations", () => {
   });
 });
 
+describe("api scheduler tasks", () => {
+  test("GET/POST/PATCH/DELETE tasks round-trip", async () => {
+    const trip = await storage.createTrip("Scheduler API Trip");
+
+    let res = await apiCall("/api/scheduler/tasks");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toHaveLength(0);
+
+    res = await apiCall("/api/scheduler/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Cancellation reminder",
+        type: "email-reminder",
+        schedule: { runAt: "2026-02-07T09:00:00", timezone: "America/Los_Angeles" },
+        payload: {
+          tripId: trip.id,
+          subject: "Cancellation deadline approaching",
+          body: "Reminder body",
+          deadlineDate: "2026-02-10",
+        },
+      }),
+    });
+    expect(res.status).toBe(201);
+    const created = await res.json();
+    expect(created.id).toBeTruthy();
+    expect(created.payload?.tripId).toBe(trip.id);
+
+    res = await apiCall(`/api/scheduler/tasks?tripId=${trip.id}`);
+    expect(res.status).toBe(200);
+    const listed = await res.json();
+    expect(listed).toHaveLength(1);
+
+    res = await apiCall(`/api/scheduler/tasks/${created.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: false }),
+    });
+    expect(res.status).toBe(200);
+    const updated = await res.json();
+    expect(updated.enabled).toBe(false);
+
+    res = await apiCall(`/api/scheduler/tasks/${created.id}`, { method: "DELETE" });
+    expect(res.status).toBe(200);
+
+    res = await apiCall(`/api/scheduler/tasks?tripId=${trip.id}`);
+    const afterDelete = await res.json();
+    expect(afterDelete).toHaveLength(0);
+  });
+});
+
 describe("mcp trip tools", () => {
   test("update_itinerary tool writes full markdown content", async () => {
     const trip = await storage.createTrip("MCP Trip");

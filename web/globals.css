@@ -1030,6 +1030,41 @@
 }
 
 /* ================================
+   RIGHT PANE SWITCHER
+   ================================ */
+
+.pane-switcher {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid hsl(var(--border-subtle));
+  background: hsl(var(--bg-secondary));
+}
+
+.pane-switcher-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: hsl(var(--text-tertiary));
+  padding: 0.35rem 0.85rem;
+  font-size: 0.75rem;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pane-switcher-btn:hover {
+  color: hsl(var(--text-primary));
+  border-color: hsl(var(--border-medium));
+}
+
+.pane-switcher-btn.active {
+  background: hsl(var(--accent-primary) / 0.12);
+  color: hsl(var(--accent-primary));
+  border-color: hsl(var(--accent-primary) / 0.35);
+  box-shadow: inset 0 0 0 1px hsl(var(--accent-primary) / 0.1);
+}
+
+/* ================================
    PROSE / MARKDOWN STYLING
    ================================ */
 
@@ -1494,4 +1529,134 @@
 .suggestion-chip:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ================================
+   REMINDERS PANE
+   ================================ */
+
+.reminders-scope {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: var(--radius-full);
+  border: 1px solid hsl(var(--border-subtle));
+  background: hsl(var(--bg-tertiary) / 0.6);
+}
+
+.reminders-scope-btn {
+  border: none;
+  background: transparent;
+  color: hsl(var(--text-tertiary));
+  padding: 0.25rem 0.7rem;
+  font-size: 0.7rem;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reminders-scope-btn.active {
+  background: hsl(var(--accent-primary) / 0.2);
+  color: hsl(var(--accent-primary));
+}
+
+.reminders-scope-btn:hover {
+  color: hsl(var(--text-primary));
+}
+
+.reminders-error {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  background: hsl(var(--error) / 0.12);
+  color: hsl(var(--error));
+  font-size: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.reminders-loading {
+  font-size: 0.85rem;
+  color: hsl(var(--text-tertiary));
+  padding: 0.5rem 0;
+}
+
+.reminders-empty {
+  border: 1px dashed hsl(var(--border-subtle));
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  background: hsl(var(--bg-secondary) / 0.6);
+}
+
+.reminders-group {
+  margin-bottom: 1.5rem;
+}
+
+.reminders-group-title {
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: hsl(var(--text-tertiary));
+  margin-bottom: 0.6rem;
+}
+
+.reminders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.reminder-card {
+  border: 1px solid hsl(var(--border-subtle));
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1rem;
+  background: hsl(var(--bg-secondary));
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.reminder-card.disabled {
+  opacity: 0.6;
+}
+
+.reminder-title {
+  font-weight: 600;
+  color: hsl(var(--text-primary));
+}
+
+.reminder-subtitle {
+  font-size: 0.75rem;
+  color: hsl(var(--text-tertiary));
+  margin-top: 0.25rem;
+}
+
+.reminder-meta {
+  font-size: 0.75rem;
+  color: hsl(var(--text-secondary));
+  margin-top: 0.35rem;
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.reminder-meta-muted {
+  color: hsl(var(--text-tertiary));
+}
+
+.reminder-error {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  color: hsl(var(--error));
+}
+
+.reminder-body {
+  margin-top: 0.6rem;
+  font-size: 0.85rem;
+  color: hsl(var(--text-secondary));
+}
+
+.reminder-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
 }

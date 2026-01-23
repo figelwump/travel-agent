@@ -3,6 +3,8 @@ import { createHeaders, jsonResponse, textResponse } from "./http";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { logTs } from "./log";
+import { Scheduler } from "./scheduler/scheduler";
+import * as schedulerStorage from "./scheduler/task-storage";
 
 type HeaderCtx = Parameters<typeof createHeaders>[1];
 
@@ -49,6 +51,87 @@ export async function handleApiRequest(req: Request, url: URL, ctx?: HeaderCtx):
   if (segments[0] !== "api") return notFound(ctx);
 
   if (segments.length === 2 && segments[1] === "health") return ok(ctx);
+
+  // /api/scheduler/tasks
+  if (segments[1] === "scheduler" && segments[2] === "tasks") {
+    if (segments.length === 3) {
+      if (req.method === "GET") {
+        const tripId = url.searchParams.get("tripId");
+        const tasks = tripId
+          ? await schedulerStorage.getTasksByTripId(tripId)
+          : await schedulerStorage.listTasks();
+        return jsonResponse(tasks, 200, ctx);
+      }
+      if (req.method === "POST") {
+        const body = await parseJson(req);
+        if (!body || typeof body !== "object") return badRequest("invalid request body", ctx);
+
+        const name = typeof body.name === "string" ? body.name.trim() : "";
+        const type = typeof body.type === "string" ? body.type : "";
+        const runAt = typeof body?.schedule?.runAt === "string" ? body.schedule.runAt : "";
+        const timezone = typeof body?.schedule?.timezone === "string" ? body.schedule.timezone : "UTC";
+
+        if (!name) return badRequest("name is required", ctx);
+        if (!["email-reminder", "webhook", "custom"].includes(type)) {
+          return badRequest("type must be email-reminder, webhook, or custom", ctx);
+        }
+        if (!runAt) return badRequest("schedule.runAt is required", ctx);
+
+        const task = await schedulerStorage.createTask({
+          name,
+          type: type as schedulerStorage.ScheduledTask["type"],
+          schedule: { runAt, timezone },
+          enabled: typeof body.enabled === "boolean" ? body.enabled : true,
+          payload: typeof body.payload === "object" && body.payload ? body.payload : {},
+          options: typeof body.options === "object" && body.options ? body.options : undefined,
+        });
+
+        const scheduler = new Scheduler();
+        const nextRun = scheduler.calculateNextRun(task);
+        const finalTask = nextRun
+          ? await schedulerStorage.updateTask(task.id, { nextRun: nextRun.toISOString() })
+          : task;
+
+        return jsonResponse(finalTask, 201, ctx);
+      }
+      return notFound(ctx);
+    }
+
+    if (segments.length === 4) {
+      const taskId = segments[3];
+      if (req.method === "GET") {
+        const task = await schedulerStorage.getTask(taskId);
+        if (!task) return notFound(ctx);
+        return jsonResponse(task, 200, ctx);
+      }
+      if (req.method === "PATCH") {
+        const body = await parseJson(req);
+        const patch = body && typeof body === "object" && body.patch && typeof body.patch === "object"
+          ? body.patch
+          : body;
+        if (!patch || typeof patch !== "object") return badRequest("patch is required", ctx);
+        try {
+          let updated = await schedulerStorage.updateTask(taskId, patch);
+          const scheduler = new Scheduler();
+          const nextRun = scheduler.calculateNextRun(updated);
+          const nextRunIso = nextRun ? nextRun.toISOString() : null;
+          if ((updated.nextRun ?? null) !== nextRunIso) {
+            updated = await schedulerStorage.updateTask(taskId, { nextRun: nextRunIso });
+          }
+          return jsonResponse(updated, 200, ctx);
+        } catch (err: any) {
+          if (err?.message?.includes("Task not found")) return notFound(ctx);
+          throw err;
+        }
+      }
+      if (req.method === "DELETE") {
+        const deleted = await schedulerStorage.deleteTask(taskId);
+        if (!deleted) return notFound(ctx);
+        return ok(ctx);
+      }
+      return notFound(ctx);
+    }
+  }
 
   // /api/trips
   if (segments.length === 2 && segments[1] === "trips") {

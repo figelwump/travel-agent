@@ -25,6 +25,7 @@ When testing in-browser:
 - Only kill the server you started when done testing
 
 Always run `bun test` after making changes.
+When you make UI changes, browser testing is encouraged and should be done automatically when possible using `/agent-browser`.
 
 ## Prompting Guidelines
 
