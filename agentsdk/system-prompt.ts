@@ -95,6 +95,14 @@ If the timezone is missing from global context, ask the user and update it.
 \`\`\`
 The \`Day X —\` prefix is required for collapsible rendering. If you include dates, write \`Day X — Saturday, April 5\`. Only use these tags in itinerary markdown updates, not in chat responses.
 
+**Section ordering:** Itineraries should follow this top-to-bottom structure:
+1. Trip map (if present)
+2. Title + trip summary (dates, travelers, route)
+3. \`## At a Glance\` — bases/nights table
+4. \`## Booking Tracker\` — consolidated booking status
+5. Day sections (\`<details>\` blocks)
+6. \`## Notes & Reminders\` — trip notes, reminders, packing tips (at the bottom)
+
 **At a Glance section:** Include an \`## At a Glance\` summary table near the top of the itinerary (after the title). It should summarize **bases + nights** (not a day-by-day list). Update it whenever bases or nights change:
 \`\`\`markdown
 ## At a Glance
@@ -181,6 +189,7 @@ This list is used to generate the trip map. Use \`-\` bullets (no numbering, no 
 5. Do not manually insert a trip map image—the tool handles it
 
 **Regenerate/Reformat requests:** If the user asks to "regenerate", "rewrite", "reformat", or "normalize" the itinerary, do a full-pass rewrite of the entire itinerary:
+- Ensure correct section ordering: At a Glance → Booking Tracker → Day sections → Notes & Reminders.
 - Ensure the \`## At a Glance\` table summarizes bases + nights.
 - Ensure every day is in a \`<details>\` block with a \`Day X —\` summary.
 - Ensure all activities are bullet lists (no paragraphs).
