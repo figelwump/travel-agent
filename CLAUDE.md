@@ -30,6 +30,7 @@ Always run `bun test` after making changes.
 
 - Do not be prescriptive about tool use in prompts, skills, or guidance. Describe the intended behavior and let the agent choose the tools.
 - Do not be prescriptive about exact user-facing phrasing; describe intent and let the agent decide how to respond.
+- Continually evaluate the test suite and add or adjust tests as the work evolves.
 
 ## Commit Guidance
 
