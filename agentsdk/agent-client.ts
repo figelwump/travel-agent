@@ -75,6 +75,10 @@ export class AgentClient {
         "mcp__entity-tools__read_context", "mcp__entity-tools__update_context",
         "mcp__entity-tools__read_global_context", "mcp__entity-tools__update_global_context",
         "mcp__entity-tools__toggle_todo",
+        "mcp__entity-tools__create_scheduled_task",
+        "mcp__entity-tools__list_scheduled_tasks",
+        "mcp__entity-tools__update_scheduled_task",
+        "mcp__entity-tools__delete_scheduled_task",
       ],
       tools: ["Task", "WebFetch", "WebSearch", "Skill"],
       agents: {

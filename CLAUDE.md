@@ -26,6 +26,11 @@ When testing in-browser:
 
 Always run `bun test` after making changes.
 
+## Prompting Guidelines
+
+- Do not be prescriptive about tool use in prompts, skills, or guidance. Describe the intended behavior and let the agent choose the tools.
+- Do not be prescriptive about exact user-facing phrasing; describe intent and let the agent decide how to respond.
+
 ## Commit Guidance
 
 When asked to commit, only include changes made by the agent for the current task. Ignore unrelated working tree changes. If there are changes unrelated changes, do not ask the user to reconfirm the commit -- just go ahead and commit the changes you made.

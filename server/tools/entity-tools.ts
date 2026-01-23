@@ -1,6 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import * as storage from "../storage";
+import { createSchedulerTools } from "./scheduler-tools";
 
 export function createTripTools(tripId: string) {
   const normalizedTripId = tripId.trim();
@@ -66,7 +67,7 @@ export function createTripTools(tripId: string) {
     };
   };
 
-  return [
+  const tools = [
     tool(
       "read_itinerary",
       "Read the itinerary markdown for the current trip",
@@ -235,4 +236,6 @@ export function createTripTools(tripId: string) {
       },
     ),
   ];
+
+  return [...tools, ...createSchedulerTools(normalizedTripId)];
 }

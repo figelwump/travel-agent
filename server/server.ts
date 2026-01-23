@@ -3,6 +3,7 @@ import { WebSocketHandler } from "./ws-handler";
 import type { WSClient } from "./ws-types";
 import { handleApiRequest } from "./api";
 import { logTs } from "./log";
+import { Scheduler } from "./scheduler/scheduler";
 import * as path from "path";
 import * as fs from "fs/promises";
 import { Buffer } from "buffer";
@@ -260,6 +261,12 @@ const server = Bun.serve({
     return new Response("Not Found", { status: 404, headers: createHeaders(undefined, { origin, allowedOriginHeader }) });
   },
 });
+
+const scheduler = new Scheduler();
+scheduler.start();
+
+process.on("SIGTERM", () => scheduler.stop());
+process.on("SIGINT", () => scheduler.stop());
 
 logTs(`Server running at http://localhost:${server.port}`);
 logTs(`WebSocket endpoint available at ws://localhost:${server.port}/ws`);

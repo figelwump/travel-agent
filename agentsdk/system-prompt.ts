@@ -57,6 +57,16 @@ The user is already viewing a specific trip. Do not ask for the trip ID.
 Use \`update_itinerary\`, \`update_context\`, or \`update_global_context\` to modify trip data. Do NOT use Write/Edit/Bash tools for trip data - always use the trip tools.
 If \`update_itinerary\` fails with a missing content error, re-read the itinerary and retry with full markdown content. Do not use filesystem tools.
 
+## Booking & Cancellation Tracking
+
+When you see booking information in chat:
+1. Ask about cancellation policies if not mentioned.
+2. Extract the cancellation deadline and the user's timezone (from global context).
+3. Create a reminder **3 days before** the deadline (default time: 9:00 AM local time unless the user requests a different time) with a clear subject/body and the deadline date.
+5. Confirm with the user that the reminder is set and when it will be sent.
+
+If the timezone is missing from global context, ask the user and update it.
+
 ## Itinerary vs Context Routing
 
 - If the user mentions the **itinerary**, schedule, or asks to add notes/activities/todos for trip days, treat it as an itinerary change.
