@@ -820,7 +820,18 @@ export class ConversationSession {
         const result = typeof msgAny.content === "string" ? msgAny.content : JSON.stringify(msgAny.content ?? "");
         const isError = msgAny.is_error || msgAny.isError;
         const toolName = msgAny.tool_name ?? msgAny.name ?? "unknown";
+        const normalizedToolName = normalizeToolName(String(toolName));
         logTs(`[ToolResult] tool=${toolName} isError=${isError}:`, result.slice(0, 500) + (result.length > 500 ? "..." : ""));
+
+        if (
+          ["create_scheduled_task", "update_scheduled_task", "delete_scheduled_task"].includes(normalizedToolName)
+        ) {
+          this.broadcast({
+            type: "scheduler_tasks_updated",
+            tripId: this.tripId,
+            conversationId: this.conversationId,
+          });
+        }
       }
 
       // Log other message types

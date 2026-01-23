@@ -108,6 +108,7 @@ const App: React.FC = () => {
   const [newTripName, setNewTripName] = useState('');
   const newTripInputRef = useRef<HTMLInputElement>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [remindersRefreshToken, setRemindersRefreshToken] = useState(0);
 
   // URL routing - store initial route from URL on mount
   const initialRouteRef = useRef<{ tripId: string | null; conversationId: string | null } | null>(null);
@@ -203,6 +204,11 @@ const App: React.FC = () => {
           console.log('Connected to server:', message.message);
           setConnectionError(null);
           setHasEverConnected(true);
+          break;
+        }
+        case 'scheduler_tasks_updated': {
+          if (message.tripId !== activeTripId) break;
+          setRemindersRefreshToken((prev) => prev + 1);
           break;
         }
         case 'tool_use': {
@@ -1355,6 +1361,7 @@ const App: React.FC = () => {
                     credentials={credentials}
                     trips={trips}
                     activeTripId={activeTripId}
+                    refreshToken={remindersRefreshToken}
                     onCollapse={() => setShowItinerary(false)}
                   />
                 )}

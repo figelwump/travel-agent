@@ -27,6 +27,7 @@ type RemindersPaneProps = {
   credentials: Credentials | null;
   trips: Trip[];
   activeTripId: string | null;
+  refreshToken?: number;
   onCollapse?: () => void;
 };
 
@@ -118,7 +119,7 @@ function formatDate(value: string | null | undefined): string {
   return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date);
 }
 
-export function RemindersPane({ credentials, trips, activeTripId, onCollapse }: RemindersPaneProps) {
+export function RemindersPane({ credentials, trips, activeTripId, refreshToken, onCollapse }: RemindersPaneProps) {
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +149,11 @@ export function RemindersPane({ credentials, trips, activeTripId, onCollapse }: 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!refreshToken) return;
+    void refresh();
+  }, [refreshToken, refresh]);
 
   const tripNameById = useMemo(() => {
     return new Map(trips.map((trip) => [trip.id, trip.name]));

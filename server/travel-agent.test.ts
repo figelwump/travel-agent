@@ -7,6 +7,7 @@ import { handleApiRequest } from "./api";
 import * as storage from "./storage";
 import { createTripTools } from "./tools/entity-tools";
 import { createTask } from "./scheduler/task-storage";
+import { ConversationSession } from "./ws-session";
 
 let tempHome: string | null = null;
 let previousHome: string | undefined;
@@ -515,5 +516,58 @@ describe("mcp scheduler tools", () => {
       {}
     );
     expect(deleteResult.isError).toBe(true);
+  });
+});
+
+describe("ws session scheduler broadcasts", () => {
+  test("broadcasts scheduler_tasks_updated on scheduler tool results", async () => {
+    const session = new ConversationSession({ tripId: "trip-1", conversationId: "conv-1" });
+    const sent: any[] = [];
+    const client = { send: (payload: string) => sent.push(JSON.parse(payload)) } as any;
+    session.subscribe(client);
+    sent.length = 0;
+
+    const toolNames = [
+      "mcp__entity-tools__create_scheduled_task",
+      "mcp__entity-tools__update_scheduled_task",
+      "mcp__entity-tools__delete_scheduled_task",
+    ];
+
+    let counter = 0;
+    for (const toolName of toolNames) {
+      await (session as any).handleSdkMessage({
+        type: "tool_result",
+        tool_name: toolName,
+        tool_use_id: `tool-${counter++}`,
+        is_error: false,
+        content: "ok",
+      });
+    }
+
+    const schedulerEvents = sent.filter((msg) => msg.type === "scheduler_tasks_updated");
+    expect(schedulerEvents).toHaveLength(toolNames.length);
+    for (const event of schedulerEvents) {
+      expect(event.tripId).toBe("trip-1");
+      expect(event.conversationId).toBe("conv-1");
+    }
+  });
+
+  test("does not broadcast scheduler updates for other tools", async () => {
+    const session = new ConversationSession({ tripId: "trip-2", conversationId: "conv-2" });
+    const sent: any[] = [];
+    const client = { send: (payload: string) => sent.push(JSON.parse(payload)) } as any;
+    session.subscribe(client);
+    sent.length = 0;
+
+    await (session as any).handleSdkMessage({
+      type: "tool_result",
+      tool_name: "mcp__entity-tools__update_itinerary",
+      tool_use_id: "tool-x",
+      is_error: false,
+      content: "ok",
+    });
+
+    const schedulerEvents = sent.filter((msg) => msg.type === "scheduler_tasks_updated");
+    expect(schedulerEvents).toHaveLength(0);
   });
 });
