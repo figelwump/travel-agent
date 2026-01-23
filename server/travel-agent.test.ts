@@ -6,6 +6,7 @@ import { createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { handleApiRequest } from "./api";
 import * as storage from "./storage";
 import { createTripTools } from "./tools/entity-tools";
+import { createTask } from "./scheduler/task-storage";
 
 let tempHome: string | null = null;
 let previousHome: string | undefined;
@@ -278,5 +279,190 @@ describe("mcp trip tools", () => {
     const assetsDir = path.join(tempHome ?? "", "trips", trip.id, "assets");
     const assets = await readdir(assetsDir);
     expect(assets.some((name) => name.startsWith("itinerary-map."))).toBe(true);
+  });
+});
+
+describe("mcp scheduler tools", () => {
+  test("create/list/update/delete scheduled tasks", async () => {
+    const trip = await storage.createTrip("Scheduler Trip");
+    const mcpServer = createSdkMcpServer({ name: "t", tools: createTripTools(trip.id) });
+    const server = (mcpServer as any).instance;
+    const callHandler = server?.server?._requestHandlers?.get("tools/call");
+
+    const createResult = await callHandler(
+      {
+        jsonrpc: "2.0",
+        id: 5,
+        method: "tools/call",
+        params: {
+          name: "create_scheduled_task",
+          arguments: {
+            name: "Cancellation reminder",
+            type: "email-reminder",
+            schedule: {
+              runAt: "2026-02-07T09:00:00",
+              timezone: "America/Los_Angeles",
+            },
+            payload: {
+              subject: "Cancellation deadline approaching",
+              body: "Reminder body",
+              deadlineDate: "2026-02-10",
+            },
+          },
+        },
+      },
+      {}
+    );
+
+    const created = JSON.parse(createResult.content?.[0]?.text ?? "{}");
+    expect(created.id).toBeTruthy();
+    expect(created.payload?.tripId).toBe(trip.id);
+    expect(created.nextRun).toBeTruthy();
+
+    const listResult = await callHandler(
+      {
+        jsonrpc: "2.0",
+        id: 6,
+        method: "tools/call",
+        params: {
+          name: "list_scheduled_tasks",
+          arguments: {},
+        },
+      },
+      {}
+    );
+    const listed = JSON.parse(listResult.content?.[0]?.text ?? "[]");
+    expect(listed).toHaveLength(1);
+    expect(listed[0].id).toBe(created.id);
+
+    const updateResult = await callHandler(
+      {
+        jsonrpc: "2.0",
+        id: 7,
+        method: "tools/call",
+        params: {
+          name: "update_scheduled_task",
+          arguments: {
+            id: created.id,
+            patch: {
+              enabled: false,
+              payload: { body: "Updated body" },
+            },
+          },
+        },
+      },
+      {}
+    );
+    const updated = JSON.parse(updateResult.content?.[0]?.text ?? "{}");
+    expect(updated.enabled).toBe(false);
+    expect(updated.payload?.body).toBe("Updated body");
+
+    const deleteResult = await callHandler(
+      {
+        jsonrpc: "2.0",
+        id: 8,
+        method: "tools/call",
+        params: {
+          name: "delete_scheduled_task",
+          arguments: { id: created.id },
+        },
+      },
+      {}
+    );
+    expect(deleteResult.content?.[0]?.text).toContain("Deleted task");
+
+    const listAfterDelete = await callHandler(
+      {
+        jsonrpc: "2.0",
+        id: 9,
+        method: "tools/call",
+        params: {
+          name: "list_scheduled_tasks",
+          arguments: {},
+        },
+      },
+      {}
+    );
+    const afterDelete = JSON.parse(listAfterDelete.content?.[0]?.text ?? "[]");
+    expect(afterDelete).toHaveLength(0);
+  });
+
+  test("scheduler tools stay scoped to the current trip", async () => {
+    const tripA = await storage.createTrip("Trip A");
+    const tripB = await storage.createTrip("Trip B");
+
+    const otherTask = await createTask({
+      name: "Other trip reminder",
+      type: "email-reminder",
+      schedule: { runAt: "2026-02-07T09:00:00", timezone: "UTC" },
+      enabled: true,
+      payload: { tripId: tripB.id, subject: "Other", body: "Other" },
+      options: { deleteAfterRun: true },
+    });
+
+    const mcpServer = createSdkMcpServer({ name: "t", tools: createTripTools(tripA.id) });
+    const server = (mcpServer as any).instance;
+    const callHandler = server?.server?._requestHandlers?.get("tools/call");
+
+    const listResult = await callHandler(
+      {
+        jsonrpc: "2.0",
+        id: 10,
+        method: "tools/call",
+        params: {
+          name: "list_scheduled_tasks",
+          arguments: {},
+        },
+      },
+      {}
+    );
+    const listed = JSON.parse(listResult.content?.[0]?.text ?? "[]");
+    expect(listed).toHaveLength(0);
+
+    const listAllResult = await callHandler(
+      {
+        jsonrpc: "2.0",
+        id: 11,
+        method: "tools/call",
+        params: {
+          name: "list_scheduled_tasks",
+          arguments: { includeAll: true },
+        },
+      },
+      {}
+    );
+    const listedAll = JSON.parse(listAllResult.content?.[0]?.text ?? "[]");
+    expect(listedAll.some((task: any) => task.id === otherTask.id)).toBe(true);
+
+    const updateResult = await callHandler(
+      {
+        jsonrpc: "2.0",
+        id: 12,
+        method: "tools/call",
+        params: {
+          name: "update_scheduled_task",
+          arguments: {
+            id: otherTask.id,
+            patch: { enabled: false },
+          },
+        },
+      },
+      {}
+    );
+    expect(updateResult.isError).toBe(true);
+
+    const deleteResult = await callHandler(
+      {
+        jsonrpc: "2.0",
+        id: 13,
+        method: "tools/call",
+        params: {
+          name: "delete_scheduled_task",
+          arguments: { id: otherTask.id },
+        },
+      },
+      {}
+    );
+    expect(deleteResult.isError).toBe(true);
   });
 });
