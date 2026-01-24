@@ -187,6 +187,20 @@ const CollapseIcon = () => (
   </svg>
 );
 
+// Expand icon (arrows pointing outward)
+const ExpandIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+  </svg>
+);
+
+// Restore icon (arrows pointing inward)
+const RestoreIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
+  </svg>
+);
+
 interface ItineraryPaneProps {
   tripId: string | null;
   credentials: Credentials | null;
@@ -196,6 +210,9 @@ interface ItineraryPaneProps {
   onRegenerateItinerary?: () => void;
   onDeleteTrip?: () => Promise<void> | void;
   onCollapse?: () => void;
+  isFullWidth?: boolean;
+  onExpand?: () => void;
+  onRestore?: () => void;
   tripCreatedAt?: string | null;
   tripUpdatedAt?: string | null;
 }
@@ -224,6 +241,9 @@ export const ItineraryPane = React.memo(function ItineraryPane({
   onRegenerateItinerary,
   onDeleteTrip,
   onCollapse,
+  isFullWidth,
+  onExpand,
+  onRestore,
   tripCreatedAt,
   tripUpdatedAt,
 }: ItineraryPaneProps) {
@@ -401,16 +421,37 @@ export const ItineraryPane = React.memo(function ItineraryPane({
     <div className="flex flex-col h-full" ref={containerRef}>
       <div className="border-b px-4 py-3 flex items-center justify-between gap-3" style={{ borderColor: 'hsl(var(--border-subtle))' }}>
         <div className="flex items-center gap-3 min-w-0">
-          {onCollapse && (
-            <button
-              type="button"
-              className="itinerary-collapse-btn"
-              onClick={onCollapse}
-              title="Collapse itinerary"
-            >
-              <CollapseIcon />
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {onCollapse && (
+              <button
+                type="button"
+                className="itinerary-collapse-btn"
+                onClick={onCollapse}
+                title="Collapse itinerary"
+              >
+                <CollapseIcon />
+              </button>
+            )}
+            {isFullWidth && onRestore ? (
+              <button
+                type="button"
+                className="itinerary-expand-full-btn"
+                onClick={onRestore}
+                title="Restore layout"
+              >
+                <RestoreIcon />
+              </button>
+            ) : onExpand && (
+              <button
+                type="button"
+                className="itinerary-expand-full-btn"
+                onClick={onExpand}
+                title="Expand to full width"
+              >
+                <ExpandIcon />
+              </button>
+            )}
+          </div>
           <div className="min-w-0">
             <div className="mono-label" style={{ color: 'hsl(var(--text-tertiary))' }}>Itinerary</div>
             {(createdLabel || updatedLabel) && (

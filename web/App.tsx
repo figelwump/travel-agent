@@ -4,7 +4,7 @@ import { useUrlRouter } from "./hooks/useUrlRouter";
 import { Message, TextBlock, ToolActivity } from "./components/message/types";
 import { ChatPanel } from "./components/ChatPanel";
 import { ItineraryPane } from "./components/ItineraryPane";
-import { RemindersPane } from "./RemindersPane";
+import { TasksPane } from "./TasksPane";
 
 const createTextBlock = (text: string): TextBlock => ({ type: 'text', text });
 
@@ -100,15 +100,16 @@ const App: React.FC = () => {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [itineraryMarkdown, setItineraryMarkdown] = useState<string>('');
   const [showItinerary, setShowItinerary] = useState(true);
-  const [rightPaneView, setRightPaneView] = useState<'itinerary' | 'reminders'>('itinerary');
+  const [rightPaneView, setRightPaneView] = useState<'itinerary' | 'tasks'>('itinerary');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [itineraryFullWidth, setItineraryFullWidth] = useState(false);
   const [draftsByTrip, setDraftsByTrip] = useState<Record<string, string>>({});
   const [draftHeightsByTrip, setDraftHeightsByTrip] = useState<Record<string, number>>({});
   const [showNewTripModal, setShowNewTripModal] = useState(false);
   const [newTripName, setNewTripName] = useState('');
   const newTripInputRef = useRef<HTMLInputElement>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [remindersRefreshToken, setRemindersRefreshToken] = useState(0);
+  const [tasksRefreshToken, setTasksRefreshToken] = useState(0);
 
   // URL routing - store initial route from URL on mount
   const initialRouteRef = useRef<{ tripId: string | null; conversationId: string | null } | null>(null);
@@ -208,7 +209,7 @@ const App: React.FC = () => {
         }
         case 'scheduler_tasks_updated': {
           if (message.tripId !== activeTripId) break;
-          setRemindersRefreshToken((prev) => prev + 1);
+          setTasksRefreshToken((prev) => prev + 1);
           break;
         }
         case 'tool_use': {
@@ -1029,8 +1030,17 @@ const App: React.FC = () => {
   }, [activeTripId, handleStartConversationWithPrompt, mapRequestPrompt]);
 
   const handleCollapseItinerary = useCallback(() => {
+    setItineraryFullWidth(false);
     setShowItinerary(false);
-  }, [setShowItinerary]);
+  }, []);
+
+  const handleExpandItinerary = useCallback(() => {
+    setItineraryFullWidth(true);
+  }, []);
+
+  const handleRestoreItinerary = useCallback(() => {
+    setItineraryFullWidth(false);
+  }, []);
 
   const handleCancelResponse = useCallback(() => {
     if (!activeTripId || !activeConversationId) return;
@@ -1213,7 +1223,8 @@ const App: React.FC = () => {
 
       {/* Main content area with sidebar */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Collapsible Chat History Sidebar */}
+        {/* Collapsible Chat History Sidebar - hidden in full-width mode */}
+        {!itineraryFullWidth && (
         <aside
           className={`chat-sidebar ${sidebarOpen ? 'open' : 'closed'}`}
           style={{ background: 'hsl(var(--bg-secondary))' }}
@@ -1297,9 +1308,10 @@ const App: React.FC = () => {
             </button>
           </div>
         </aside>
+        )}
 
-        {/* Sidebar toggle when collapsed */}
-        {!sidebarOpen && (
+        {/* Sidebar toggle when collapsed - hidden in full-width mode */}
+        {!itineraryFullWidth && !sidebarOpen && (
           <button
             type="button"
             className="sidebar-expand-btn"
@@ -1312,7 +1324,8 @@ const App: React.FC = () => {
 
         {/* Main chat + itinerary area */}
         <main className="flex-1 flex overflow-hidden p-4 gap-4">
-          {/* Chat Panel */}
+          {/* Chat Panel - hidden in full-width mode */}
+          {!itineraryFullWidth && (
           <div className={`terminal-container overflow-hidden ${showItinerary ? 'flex-1' : 'flex-1'}`}>
             <ChatPanel
               isConnected={isConnected}
@@ -1331,9 +1344,10 @@ const App: React.FC = () => {
               textareaRef={chatTextareaRef}
             />
           </div>
+          )}
 
           {/* Right-side Pane */}
-          {showItinerary && (
+          {(showItinerary || itineraryFullWidth) && (
             <div className="terminal-container overflow-hidden flex-1 flex flex-col">
               <div className="pane-switcher">
                 <button
@@ -1345,10 +1359,10 @@ const App: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  className={`pane-switcher-btn ${rightPaneView === 'reminders' ? 'active' : ''}`}
-                  onClick={() => setRightPaneView('reminders')}
+                  className={`pane-switcher-btn ${rightPaneView === 'tasks' ? 'active' : ''}`}
+                  onClick={() => setRightPaneView('tasks')}
                 >
-                  Reminders
+                  Tasks
                 </button>
               </div>
               <div className="flex-1 overflow-hidden">
@@ -1362,15 +1376,20 @@ const App: React.FC = () => {
                     onRegenerateItinerary={activeTripId ? handleRegenerateItinerary : undefined}
                     onDeleteTrip={handleDeleteTrip}
                     onCollapse={handleCollapseItinerary}
+                    isFullWidth={itineraryFullWidth}
+                    onExpand={handleExpandItinerary}
+                    onRestore={handleRestoreItinerary}
                     tripCreatedAt={activeTrip?.createdAt ?? null}
                     tripUpdatedAt={activeTrip?.updatedAt ?? null}
                   />
                 ) : (
-                  <RemindersPane
+                  <TasksPane
                     credentials={credentials}
                     trips={trips}
                     activeTripId={activeTripId}
-                    refreshToken={remindersRefreshToken}
+                    itineraryMarkdown={itineraryMarkdown}
+                    refreshToken={tasksRefreshToken}
+                    onRefreshItinerary={refreshItinerary}
                     onCollapse={handleCollapseItinerary}
                   />
                 )}
@@ -1384,10 +1403,10 @@ const App: React.FC = () => {
               type="button"
               className="itinerary-expand-btn"
               onClick={() => setShowItinerary(true)}
-              title={rightPaneView === 'itinerary' ? "Show itinerary" : "Show reminders"}
+              title={rightPaneView === 'itinerary' ? "Show itinerary" : "Show tasks"}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M8 7l-5 5 5 5M3 12h12" />
               </svg>
             </button>
           )}
