@@ -215,7 +215,7 @@ function withAuthToken(url: string, credentials: Credentials | null): string {
   }
 }
 
-export function ItineraryPane({
+export const ItineraryPane = React.memo(function ItineraryPane({
   tripId,
   credentials,
   markdown,
@@ -572,4 +572,4 @@ export function ItineraryPane({
       </div>
     </div>
   );
-}
+});

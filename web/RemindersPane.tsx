@@ -119,7 +119,7 @@ function formatDate(value: string | null | undefined): string {
   return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date);
 }
 
-export function RemindersPane({ credentials, trips, activeTripId, refreshToken, onCollapse }: RemindersPaneProps) {
+export const RemindersPane = React.memo(function RemindersPane({ credentials, trips, activeTripId, refreshToken, onCollapse }: RemindersPaneProps) {
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -336,4 +336,4 @@ export function RemindersPane({ credentials, trips, activeTripId, refreshToken, 
       </div>
     </div>
   );
-}
+});

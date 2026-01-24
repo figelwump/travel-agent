@@ -700,7 +700,7 @@ const App: React.FC = () => {
     setMessages(mapped);
   };
 
-  const refreshItinerary = async () => {
+  const refreshItinerary = useCallback(async () => {
     if (!activeTripId) return;
     console.debug('[itinerary] refresh start', { tripId: activeTripId });
     const res = await apiFetch<string>(`/api/trips/${activeTripId}/itinerary`, { method: 'GET' }, credentials);
@@ -714,7 +714,7 @@ const App: React.FC = () => {
       preview: (res.data ?? '').split('\n')[0] || ''
     });
     setItineraryMarkdown(res.data);
-  };
+  }, [activeTripId, credentials]);
 
   useEffect(() => {
     if (!credentials) return;
@@ -880,7 +880,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleDeleteTrip = async () => {
+  const handleDeleteTrip = useCallback(async () => {
     if (!activeTripId || !credentials) return;
     const tripName = activeTrip?.name ?? 'this trip';
     const okToDelete = confirm(
@@ -925,7 +925,7 @@ const App: React.FC = () => {
     streamingMessageIdRef.current = null;
     toolActivityMessageIdRef.current = null;
     toolUseToMessageRef.current = {};
-  };
+  }, [activeTripId, credentials, activeTrip?.name, trips, navigate]);
 
   const handleCreateConversation = async () => {
     if (!activeTripId) return;
@@ -1018,10 +1018,19 @@ const App: React.FC = () => {
   const regenerateItineraryPrompt =
     "Fully regenerate the itinerary using the latest itinerary conventions and follow the conventions provided in your system prompt. Do not regenerate the map unless destinations changed.";
 
-  const handleRegenerateItinerary = () => {
+  const handleRegenerateItinerary = useCallback(() => {
     if (isLoading || !activeTripId) return;
     void handleStartConversationWithPrompt(regenerateItineraryPrompt, 'Regenerate itinerary');
-  };
+  }, [activeTripId, handleStartConversationWithPrompt, isLoading, regenerateItineraryPrompt]);
+
+  const handleRequestMap = useCallback(() => {
+    if (!activeTripId) return;
+    void handleStartConversationWithPrompt(mapRequestPrompt, 'Trip map');
+  }, [activeTripId, handleStartConversationWithPrompt, mapRequestPrompt]);
+
+  const handleCollapseItinerary = useCallback(() => {
+    setShowItinerary(false);
+  }, [setShowItinerary]);
 
   const handleCancelResponse = useCallback(() => {
     if (!activeTripId || !activeConversationId) return;
@@ -1349,10 +1358,10 @@ const App: React.FC = () => {
                     credentials={credentials}
                     markdown={itineraryMarkdown}
                     onRefresh={refreshItinerary}
-                    onRequestMap={activeTripId ? () => handleStartConversationWithPrompt(mapRequestPrompt, 'Trip map') : undefined}
+                    onRequestMap={activeTripId ? handleRequestMap : undefined}
                     onRegenerateItinerary={activeTripId ? handleRegenerateItinerary : undefined}
                     onDeleteTrip={handleDeleteTrip}
-                    onCollapse={() => setShowItinerary(false)}
+                    onCollapse={handleCollapseItinerary}
                     tripCreatedAt={activeTrip?.createdAt ?? null}
                     tripUpdatedAt={activeTrip?.updatedAt ?? null}
                   />
@@ -1362,7 +1371,7 @@ const App: React.FC = () => {
                     trips={trips}
                     activeTripId={activeTripId}
                     refreshToken={remindersRefreshToken}
-                    onCollapse={() => setShowItinerary(false)}
+                    onCollapse={handleCollapseItinerary}
                   />
                 )}
               </div>
