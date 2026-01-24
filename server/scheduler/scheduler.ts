@@ -95,6 +95,8 @@ export class Scheduler {
       const now = new Date();
 
       for (const task of tasks) {
+        const isDone = task.status === "done" || task.completedAt != null;
+        if (isDone) continue;
         if (!task.enabled) continue;
         const nextRun = this.calculateNextRun(task);
         if (!nextRun) continue;
@@ -109,7 +111,7 @@ export class Scheduler {
         try {
           logTs(`[Scheduler] Running task ${task.id} (${task.name})`);
           await runTask(task);
-          if (task.options?.deleteAfterRun ?? true) {
+          if (task.options?.deleteAfterRun ?? false) {
             await deleteTask(task.id);
             logTs(`[Scheduler] Deleted task ${task.id} after run`);
           } else {

@@ -1551,10 +1551,11 @@
 }
 
 /* ================================
-   REMINDERS PANE
+   TASKS PANE
    ================================ */
 
-.reminders-scope {
+.tasks-scope,
+.tasks-status {
   display: flex;
   gap: 0.25rem;
   padding: 0.25rem;
@@ -1563,7 +1564,7 @@
   background: hsl(var(--bg-tertiary) / 0.6);
 }
 
-.reminders-scope-btn {
+.tasks-scope-btn {
   border: none;
   background: transparent;
   color: hsl(var(--text-tertiary));
@@ -1574,16 +1575,16 @@
   transition: all 0.2s ease;
 }
 
-.reminders-scope-btn.active {
+.tasks-scope-btn.active {
   background: hsl(var(--accent-primary) / 0.2);
   color: hsl(var(--accent-primary));
 }
 
-.reminders-scope-btn:hover {
+.tasks-scope-btn:hover {
   color: hsl(var(--text-primary));
 }
 
-.reminders-error {
+.tasks-error {
   padding: 0.75rem 1rem;
   border-radius: var(--radius-md);
   background: hsl(var(--error) / 0.12);
@@ -1592,24 +1593,24 @@
   margin-bottom: 1rem;
 }
 
-.reminders-loading {
+.tasks-loading {
   font-size: 0.85rem;
   color: hsl(var(--text-tertiary));
   padding: 0.5rem 0;
 }
 
-.reminders-empty {
+.tasks-empty {
   border: 1px dashed hsl(var(--border-subtle));
   border-radius: var(--radius-md);
   padding: 1.25rem;
   background: hsl(var(--bg-secondary) / 0.6);
 }
 
-.reminders-group {
+.tasks-group {
   margin-bottom: 1.5rem;
 }
 
-.reminders-group-title {
+.tasks-group-title {
   text-transform: uppercase;
   font-size: 0.7rem;
   letter-spacing: 0.08em;
@@ -1617,39 +1618,77 @@
   margin-bottom: 0.6rem;
 }
 
-.reminders-list {
+.tasks-list {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-.reminder-card {
+.task-card {
   border: 1px solid hsl(var(--border-subtle));
   border-radius: var(--radius-md);
   padding: 0.9rem 1rem;
   background: hsl(var(--bg-secondary));
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 1rem;
   align-items: flex-start;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.reminder-card.disabled {
+.task-card.just-done {
+  animation: task-done-pop 0.55s ease;
+}
+
+.task-check {
+  display: flex;
+  align-items: flex-start;
+  padding-top: 0.1rem;
+}
+
+.task-check-btn.is-done {
+  color: hsl(var(--success));
+  border-color: hsl(var(--success) / 0.4);
+  background: hsl(var(--success) / 0.12);
+}
+
+.task-check-btn.is-done:hover:not(:disabled) {
+  color: hsl(var(--success));
+  border-color: hsl(var(--success) / 0.6);
+  background: hsl(var(--success) / 0.18);
+}
+
+.task-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-card.disabled {
   opacity: 0.6;
 }
 
-.reminder-title {
+.task-card.done {
+  opacity: 0.75;
+  background: hsl(var(--bg-secondary) / 0.8);
+}
+
+.task-title {
   font-weight: 600;
   color: hsl(var(--text-primary));
 }
 
-.reminder-subtitle {
+.task-card.done .task-title {
+  color: hsl(var(--text-tertiary));
+  text-decoration: line-through;
+}
+
+.task-subtitle {
   font-size: 0.75rem;
   color: hsl(var(--text-tertiary));
   margin-top: 0.25rem;
 }
 
-.reminder-meta {
+.task-meta {
   font-size: 0.75rem;
   color: hsl(var(--text-secondary));
   margin-top: 0.35rem;
@@ -1658,24 +1697,56 @@
   flex-wrap: wrap;
 }
 
-.reminder-meta-muted {
+.task-meta-muted {
   color: hsl(var(--text-tertiary));
 }
 
-.reminder-error {
+.task-meta-tag {
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-full);
+  border: 1px solid hsl(var(--border-subtle));
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: hsl(var(--text-tertiary));
+}
+
+.task-meta-tag.task-meta-tag-muted {
+  border-color: hsl(var(--accent-primary) / 0.2);
+  color: hsl(var(--accent-primary));
+  background: hsl(var(--accent-primary) / 0.1);
+}
+
+.task-error {
   margin-top: 0.4rem;
   font-size: 0.75rem;
   color: hsl(var(--error));
 }
 
-.reminder-body {
+.task-body {
   margin-top: 0.6rem;
   font-size: 0.85rem;
   color: hsl(var(--text-secondary));
 }
 
-.reminder-actions {
+.task-actions {
   display: flex;
   gap: 0.4rem;
   align-items: center;
+  margin-left: auto;
+}
+
+@keyframes task-done-pop {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+  }
+  40% {
+    transform: scale(1.01);
+    box-shadow: 0 6px 14px hsl(var(--success) / 0.15);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: none;
+  }
 }

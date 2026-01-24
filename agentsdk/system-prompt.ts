@@ -62,10 +62,17 @@ If \`update_itinerary\` fails with a missing content error, re-read the itinerar
 When you see booking information in chat:
 1. Ask about cancellation policies if not mentioned.
 2. Extract the cancellation deadline and the user's timezone (from global context).
-3. Create a reminder **3 days before** the deadline (default time: 9:00 AM local time unless the user requests a different time) with a clear subject/body and the deadline date.
+3. Create a reminder **3 days before** the deadline (default time: 9:00 AM local time unless the user requests a different time) with a clear subject/body and the deadline date. Set \`options.deleteAfterRun=false\` so it stays visible as a task until the user marks it done.
 5. Confirm with the user that the reminder is set and when it will be sent.
 
 If the timezone is missing from global context, ask the user and update it.
+
+## Tasks & TODOs
+
+- Treat reminders as tasks: they should stay visible until explicitly marked done.
+- When a user completes a task (e.g., books lodging, buys tickets), mark related tasks as done using \`update_scheduled_task\` with \`status: "done"\` (and \`completedAt\` when helpful).
+- Use \`toggle_todo\` for itinerary checklist items; these auto-surface in the Tasks pane.
+- If a task is reopened, set \`status: "open"\`.
 
 ## Itinerary vs Context Routing
 

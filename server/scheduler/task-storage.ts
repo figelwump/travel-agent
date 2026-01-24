@@ -11,6 +11,8 @@ export type ScheduledTask = {
   schedule: { runAt: string; timezone: string };
   enabled: boolean;
   createdAt: string;
+  status?: "open" | "done";
+  completedAt?: string | null;
   lastRun?: string;
   nextRun?: string | null;
   runAttempts?: number;
@@ -29,6 +31,11 @@ export type ScheduledTask = {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function normalizeStatus(value: any): "open" | "done" | undefined {
+  if (value === "open" || value === "done") return value;
+  return undefined;
 }
 
 function schedulerDir(): string {
@@ -77,7 +84,7 @@ export async function createTask(task: Omit<ScheduledTask, "id" | "createdAt">):
   const createdAt = nowIso();
   const id = crypto.randomUUID();
   const options = {
-    deleteAfterRun: true,
+    deleteAfterRun: false,
     ...task.options,
   };
   const next: ScheduledTask = {
@@ -86,6 +93,8 @@ export async function createTask(task: Omit<ScheduledTask, "id" | "createdAt">):
     createdAt,
     enabled: task.enabled ?? true,
     options,
+    status: normalizeStatus(task.status) ?? "open",
+    completedAt: task.completedAt ?? null,
   };
   tasks.push(next);
   await writeTasks(tasks);
@@ -97,9 +106,20 @@ export async function updateTask(id: string, patch: Partial<ScheduledTask>): Pro
   const idx = tasks.findIndex((task) => task.id === id);
   if (idx === -1) throw new Error(`Task not found: ${id}`);
   const current = tasks[idx];
+  const normalizedPatch: Partial<ScheduledTask> = { ...patch };
+  if ("status" in patch) {
+    const status = normalizeStatus(patch.status) ?? current.status ?? "open";
+    normalizedPatch.status = status;
+    if (status === "done" && normalizedPatch.completedAt === undefined) {
+      normalizedPatch.completedAt = nowIso();
+    }
+    if (status === "open" && normalizedPatch.completedAt === undefined) {
+      normalizedPatch.completedAt = null;
+    }
+  }
   const next: ScheduledTask = {
     ...current,
-    ...patch,
+    ...normalizedPatch,
     id: current.id,
     createdAt: current.createdAt,
   };

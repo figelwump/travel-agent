@@ -6,7 +6,8 @@ import { createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { handleApiRequest } from "./api";
 import * as storage from "./storage";
 import { createTripTools } from "./tools/entity-tools";
-import { createTask } from "./scheduler/task-storage";
+import { createTask, getTask, updateTask } from "./scheduler/task-storage";
+import { Scheduler } from "./scheduler/scheduler";
 import { ConversationSession } from "./ws-session";
 
 let tempHome: string | null = null;
@@ -195,6 +196,48 @@ describe("api scheduler tasks", () => {
     res = await apiCall(`/api/scheduler/tasks?tripId=${trip.id}`);
     const afterDelete = await res.json();
     expect(afterDelete).toHaveLength(0);
+  });
+
+  test("task status updates set/clear completedAt", async () => {
+    const trip = await storage.createTrip("Task Status Trip");
+    const task = await createTask({
+      name: "Finish booking",
+      type: "email-reminder",
+      schedule: { runAt: "2026-02-07T09:00:00", timezone: "UTC" },
+      enabled: true,
+      payload: { tripId: trip.id, subject: "Booking", body: "Complete booking" },
+    });
+
+    expect(task.status).toBe("open");
+    expect(task.completedAt).toBeNull();
+
+    const done = await updateTask(task.id, { status: "done" });
+    expect(done.status).toBe("done");
+    expect(done.completedAt).toBeTruthy();
+
+    const reopened = await updateTask(task.id, { status: "open" });
+    expect(reopened.status).toBe("open");
+    expect(reopened.completedAt).toBeNull();
+  });
+
+  test("scheduler skips done tasks", async () => {
+    const trip = await storage.createTrip("Scheduler Done Trip");
+    const task = await createTask({
+      name: "Past reminder",
+      type: "email-reminder",
+      schedule: { runAt: "2020-01-01T09:00:00", timezone: "UTC" },
+      enabled: true,
+      payload: { tripId: trip.id, subject: "Past", body: "Past reminder" },
+    });
+    await updateTask(task.id, { status: "done" });
+
+    const scheduler = new Scheduler();
+    await scheduler.checkTasks();
+
+    const stored = await getTask(task.id);
+    expect(stored).toBeTruthy();
+    expect(stored?.status).toBe("done");
+    expect(stored?.lastRun).toBeUndefined();
   });
 });
 
