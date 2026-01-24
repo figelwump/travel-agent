@@ -61,6 +61,23 @@ function authHeader(credentials: Credentials | null): string | null {
   return `Basic ${btoa(`user:${credentials.password}`)}`;
 }
 
+function withAuthToken(url: string, credentials: Credentials | null): string {
+  if (credentials?.password) return url;
+  if (typeof window === 'undefined') return url;
+  try {
+    const current = new URL(window.location.href);
+    const token = current.searchParams.get('token');
+    if (!token) return url;
+    const resolved = new URL(url, window.location.origin);
+    if (!resolved.searchParams.has('token')) {
+      resolved.searchParams.set('token', token);
+    }
+    return resolved.pathname + resolved.search;
+  } catch {
+    return url;
+  }
+}
+
 async function apiFetch<T>(
   url: string,
   opts: RequestInit,
@@ -132,11 +149,11 @@ export const RemindersPane = React.memo(function RemindersPane({ credentials, tr
   }, [activeTripId]);
 
   const refresh = useCallback(async () => {
-    if (!credentials) return;
     setIsLoading(true);
     setError(null);
     const params = scope === 'trip' && activeTripId ? `?tripId=${encodeURIComponent(activeTripId)}` : '';
-    const res = await apiFetch<ScheduledTask[]>(`/api/scheduler/tasks${params}`, { method: 'GET' }, credentials);
+    const url = withAuthToken(`/api/scheduler/tasks${params}`, credentials);
+    const res = await apiFetch<ScheduledTask[]>(url, { method: 'GET' }, credentials);
     if (!res.ok) {
       setError(res.error || 'Failed to load reminders.');
       setIsLoading(false);
