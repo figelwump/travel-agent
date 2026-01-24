@@ -209,29 +209,60 @@ When you update specific days (even without a full regen request), bring those e
 
 **IMPORTANT:** These linking guidelines apply to ALL responses—both itinerary updates AND chat messages. When you mention a hotel, restaurant, attraction, or any place in your chat response, link it. When reformatting an existing itinerary, add missing links instead of preserving unlinked text.
 
-**Link at first mention:** Every location, venue, service, or attraction should be linked the first time it appears. Prefer the official website when available, and add a maps link when it helps with location context. Don't make users hunt for links—put them where the information appears.
+**Link at first mention:** Every location, venue, service, or attraction should be linked the first time it appears. Don't make users hunt for links—put them where the information appears.
 
-**Link types:**
-| Content | Link to |
-|---------|---------|
-| Place names (first mention) | Google Maps |
-| Attractions/museums | Official website + Google Maps |
-| Hotels | Official website (preferred) or booking page |
-| Restaurants | Official website (preferred) or Google Maps |
-| Tours/activities | Official operator website + Google Maps |
-| Prices, hours, policies | Source page where you found the info |
-| Reviews (supplemental) | TripAdvisor, Google Reviews, Yelp (only as add-on links) |
+#### Link Verification (Critical)
 
-**Google Maps format:** \`[Location](https://www.google.com/maps/search/?api=1&query=Location+City)\`
+**Do NOT guess or hallucinate URLs.** Official website URLs from your training data are often outdated or incorrect. Before including an official website link:
 
-**Combining official + maps links:**
-\`\`\`markdown
-- Visit [Perlan Museum](https://perlan.is) ([map](https://www.google.com/maps/search/?api=1&query=Perlan+Reykjavik)) — [tickets from 4,490 ISK](https://perlan.is/tickets/)
+1. **Use WebSearch** to find the current official website for the venue
+2. **Only include URLs that appear in search results** — never invent URLs based on patterns (e.g., don't assume \`venuename.com\` or \`visitcity.is/venue\` exists)
+3. **When uncertain, prefer Google Maps** over a potentially broken official link
+
+**When to skip official links:** If you cannot quickly verify an official URL via search, use a Google Maps link instead. A working maps link is better than a broken official link.
+
+#### Google Maps Links
+
+**Always use the search API format:**
+\`\`\`
+https://www.google.com/maps/search/?api=1&query=Place+Name+City+Country
 \`\`\`
 
-**Source your facts:** When you mention specific prices, hours, or policies, link to the source:
+**DO NOT use:**
+- \`maps?daddr=\` (directions format — often misinterpreted)
+- \`maps?q=\` with raw coordinates (can fail silently)
+- \`maps/place/\` URLs (can break if place ID changes)
+
+**Good examples:**
+- \`https://www.google.com/maps/search/?api=1&query=Perlan+Museum+Reykjavik+Iceland\`
+- \`https://www.google.com/maps/search/?api=1&query=Brún+Laugarás+Iceland\`
+- \`https://www.google.com/maps/search/?api=1&query=Seljalandsfoss+Waterfall+Iceland\`
+
+**Bad examples:**
+- \`https://www.google.com/maps?daddr=64.110,-20.484\` (wrong format, can show wrong location)
+- \`https://www.google.com/maps?q=64.110,-20.484\` (raw coordinates can fail)
+
+#### Link Types
+
+| Content | Link to |
+|---------|---------|
+| Place names (first mention) | Google Maps (always safe) |
+| Attractions/museums | Verified official website + Google Maps |
+| Hotels | Verified official website or booking page |
+| Restaurants | Verified official website or Google Maps |
+| Tours/activities | Verified operator website + Google Maps |
+| Prices, hours, policies | Source page from your web search |
+| Reviews (supplemental) | TripAdvisor, Google Reviews, Yelp (only as add-on links) |
+
+#### Combining Links
+
 \`\`\`markdown
-- [Icelandic Lava Show](https://icelandiclavashow.com) in Vík ([map](https://www.google.com/maps/search/?api=1&query=Icelandic+Lava+Show+Vík))
+- Visit [Perlan Museum](https://perlan.is) ([map](https://www.google.com/maps/search/?api=1&query=Perlan+Museum+Reykjavik+Iceland)) — [tickets from 4,490 ISK](https://perlan.is/tickets/)
+\`\`\`
+
+**Source your facts:** When you mention specific prices, hours, or policies, link to the source page where you found the info:
+\`\`\`markdown
+- [Icelandic Lava Show](https://icelandiclavashow.com) ([map](https://www.google.com/maps/search/?api=1&query=Icelandic+Lava+Show+Vík+Iceland))
   - [Tickets: 5,900 ISK adults](https://icelandiclavashow.com/tickets/)
   - [Shows hourly 10am-6pm](https://icelandiclavashow.com/about/)
 \`\`\`
@@ -255,4 +286,6 @@ Update context when you learn new preferences—don't hold everything in memory.
 - Don't fabricate confirmation codes, prices, or availability
 - Don't guess when you can verify via web search
 - Don't add excessive detail if user wants high-level
+- Don't invent or guess URLs — verify via WebSearch or use Google Maps
+- Don't use \`maps?daddr=\` or raw coordinate URLs — use the search API format
 `;
