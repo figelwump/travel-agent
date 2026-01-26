@@ -3,6 +3,12 @@ import type { ScheduledTask } from "../task-storage";
 import { logTs } from "../../log";
 
 let resendClient: Resend | null = null;
+let lastSendAtMs = 0;
+const MIN_INTERVAL_MS = 600;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function getResendClient(): Resend {
   const apiKey = process.env.RESEND_API_KEY;
@@ -16,6 +22,12 @@ function getResendClient(): Resend {
 }
 
 export async function sendReminderEmail(task: ScheduledTask): Promise<void> {
+  const now = Date.now();
+  const elapsed = now - lastSendAtMs;
+  if (elapsed < MIN_INTERVAL_MS) {
+    await sleep(MIN_INTERVAL_MS - elapsed);
+  }
+
   const to = process.env.NOTIFICATION_EMAIL;
   if (!to) {
     throw new Error("NOTIFICATION_EMAIL not configured.");
@@ -38,5 +50,6 @@ export async function sendReminderEmail(task: ScheduledTask): Promise<void> {
     throw new Error(`Resend error: ${result.error.message || "Unknown error"}`);
   }
 
+  lastSendAtMs = Date.now();
   logTs(`[Scheduler] Email reminder sent task=${task.id} to=${to}`);
 }
