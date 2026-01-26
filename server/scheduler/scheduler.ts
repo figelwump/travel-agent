@@ -1,9 +1,13 @@
+import * as fs from "fs/promises";
+import * as path from "path";
 import { logTs } from "../log";
+import { travelAgentHome } from "../storage";
 import type { ScheduledTask } from "./task-storage";
 import { deleteTask, listTasks, updateTask } from "./task-storage";
 import { runTask } from "./task-runner";
 
 const CHECK_INTERVAL_MS = 60_000;
+const LEASE_DURATION_MS = 120_000;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -24,6 +28,55 @@ function parseLocalDateTime(value: string): { year: number; month: number; day: 
 }
 
 type LocalParts = { year: number; month: number; day: number; hour: number; minute: number; second: number };
+
+type SchedulerLease = {
+  pid: number;
+  token: string;
+  expiresAt: number;
+};
+
+function leasePath(): string {
+  return path.join(travelAgentHome(), "scheduler", "lease.json");
+}
+
+async function readLease(): Promise<SchedulerLease | null> {
+  try {
+    const raw = await fs.readFile(leasePath(), "utf8");
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (typeof parsed.pid !== "number" || typeof parsed.token !== "string" || typeof parsed.expiresAt !== "number") {
+      return null;
+    }
+    return parsed as SchedulerLease;
+  } catch (err: any) {
+    if (err?.code === "ENOENT") return null;
+    return null;
+  }
+}
+
+async function writeLease(lease: SchedulerLease): Promise<void> {
+  const filePath = leasePath();
+  const dir = path.dirname(filePath);
+  await fs.mkdir(dir, { recursive: true });
+  const tmp = path.join(dir, `${path.basename(filePath)}.${Date.now()}.tmp`);
+  await fs.writeFile(tmp, JSON.stringify(lease, null, 2), "utf8");
+  await fs.rename(tmp, filePath);
+}
+
+async function claimLease(): Promise<boolean> {
+  const now = Date.now();
+  const current = await readLease();
+  if (current && current.expiresAt > now) {
+    if (current.pid !== process.pid) return false;
+    await writeLease({ ...current, expiresAt: now + LEASE_DURATION_MS });
+    return true;
+  }
+  const token = crypto.randomUUID();
+  const next: SchedulerLease = { pid: process.pid, token, expiresAt: now + LEASE_DURATION_MS };
+  await writeLease(next);
+  const confirmed = await readLease();
+  return Boolean(confirmed && confirmed.token === token);
+}
 
 function getTimeZoneOffset(date: Date, timeZone: string): number {
   const dtf = new Intl.DateTimeFormat("en-US", {
@@ -168,6 +221,11 @@ export class Scheduler {
     if (this.running) return;
     this.running = true;
     try {
+      const hasLease = await claimLease();
+      if (!hasLease) {
+        logTs("[Scheduler] Skipping run; another scheduler holds the lease.");
+        return;
+      }
       const tasks = await listTasks();
       const taskNames = tasks.map((task) => `${task.id}:${task.name}`).join(", ");
       logTs(`[Scheduler] Loaded ${tasks.length} task(s)${tasks.length ? ` (${taskNames})` : ""}`);
