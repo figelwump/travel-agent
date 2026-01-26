@@ -58,24 +58,34 @@ async function writeLease(lease: SchedulerLease): Promise<void> {
   const filePath = leasePath();
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true });
-  const tmp = path.join(dir, `${path.basename(filePath)}.${Date.now()}.tmp`);
-  await fs.writeFile(tmp, JSON.stringify(lease, null, 2), "utf8");
-  await fs.rename(tmp, filePath);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const tmp = path.join(dir, `${path.basename(filePath)}.${process.pid}.${crypto.randomUUID()}.tmp`);
+    await fs.writeFile(tmp, JSON.stringify(lease, null, 2), "utf8");
+    try {
+      await fs.rename(tmp, filePath);
+      return;
+    } catch (err: any) {
+      if (err?.code === "ENOENT" && attempt === 0) continue;
+      throw err;
+    }
+  }
 }
 
-async function claimLease(): Promise<boolean> {
+async function claimLease(): Promise<{ acquired: boolean; lease: SchedulerLease | null; fresh: boolean }> {
   const now = Date.now();
   const current = await readLease();
   if (current && current.expiresAt > now) {
-    if (current.pid !== process.pid) return false;
-    await writeLease({ ...current, expiresAt: now + LEASE_DURATION_MS });
-    return true;
+    if (current.pid !== process.pid) return { acquired: false, lease: current, fresh: false };
+    const renewed = { ...current, expiresAt: now + LEASE_DURATION_MS };
+    await writeLease(renewed);
+    return { acquired: true, lease: renewed, fresh: false };
   }
   const token = crypto.randomUUID();
   const next: SchedulerLease = { pid: process.pid, token, expiresAt: now + LEASE_DURATION_MS };
   await writeLease(next);
   const confirmed = await readLease();
-  return Boolean(confirmed && confirmed.token === token);
+  const acquired = Boolean(confirmed && confirmed.token === token);
+  return { acquired, lease: confirmed ?? next, fresh: acquired };
 }
 
 function getTimeZoneOffset(date: Date, timeZone: string): number {
@@ -221,10 +231,14 @@ export class Scheduler {
     if (this.running) return;
     this.running = true;
     try {
-      const hasLease = await claimLease();
-      if (!hasLease) {
-        logTs("[Scheduler] Skipping run; another scheduler holds the lease.");
+      const leaseResult = await claimLease();
+      if (!leaseResult.acquired) {
+        const owner = leaseResult.lease?.pid ? ` pid=${leaseResult.lease.pid}` : "";
+        logTs(`[Scheduler] Skipping run; another scheduler holds the lease${owner}.`);
         return;
+      }
+      if (leaseResult.fresh && leaseResult.lease?.pid) {
+        logTs(`[Scheduler] Lease acquired by pid=${leaseResult.lease.pid}`);
       }
       const tasks = await listTasks();
       const taskNames = tasks.map((task) => `${task.id}:${task.name}`).join(", ");
