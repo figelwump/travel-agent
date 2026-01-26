@@ -244,10 +244,18 @@ const App: React.FC = () => {
           break;
         }
         case 'session_info': {
-          if (message.tripId !== activeTripId || message.conversationId !== activeConversationId) break;
-          if (typeof message.isActive === 'boolean') {
-            setIsLoading(message.isActive);
-            queryInProgressRef.current = message.isActive;
+          // Only SET progress from session_info (when switching to active conversation)
+          // Don't clear progress here - the 'result' message handles that reliably.
+          // This prevents a race where session_info with isActive:false arrives
+          // before the query starts, clearing progress the client just set.
+          if (message.tripId === activeTripId && message.isActive === true) {
+            const convId = message.conversationId;
+            setConversationProgress(prev => prev[convId] ? prev : { ...prev, [convId]: true });
+            // Also update global loading state if this is the active conversation
+            if (convId === activeConversationId) {
+              setIsLoading(true);
+              queryInProgressRef.current = true;
+            }
           }
           break;
         }
@@ -531,6 +539,17 @@ const App: React.FC = () => {
           break;
         }
         case 'result': {
+          // Clear progress for ANY conversation in this trip (even if not active)
+          if (message.tripId === activeTripId) {
+            const convId = message.conversationId;
+            setConversationProgress(prev => {
+              if (!prev[convId]) return prev;
+              const next = { ...prev };
+              delete next[convId];
+              return next;
+            });
+          }
+          // Only process other result handling for active conversation
           if (message.tripId !== activeTripId || message.conversationId !== activeConversationId) break;
           if (message.success) {
             console.log('Query completed successfully', message);
@@ -1405,6 +1424,7 @@ const App: React.FC = () => {
               onCancel={handleCancelResponse}
               onUploadFiles={handleUploadFiles}
               tripName={activeTrip?.name ?? null}
+              itineraryMarkdown={itineraryMarkdown}
               conversationTitle={activeConversation?.title ?? null}
               textareaRef={chatTextareaRef}
             />

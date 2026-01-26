@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { MessageRenderer } from './message/MessageRenderer';
 import type { Message } from './message/types';
+import { buildChatSuggestions } from '../lib/chatSuggestions';
 
 // Icons for the input bar
 const PaperclipIcon = () => (
@@ -28,6 +29,7 @@ interface ChatPanelProps {
   onCancel: () => void;
   onUploadFiles: (files: FileList) => void;
   tripName: string | null;
+  itineraryMarkdown: string;
   conversationTitle: string | null;
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
@@ -36,6 +38,7 @@ type MessageListProps = {
   messages: Message[];
   isLoading: boolean;
   tripName: string | null;
+  itineraryMarkdown: string;
   inputDisabled: boolean;
   onSend: (text: string) => void;
 };
@@ -44,6 +47,7 @@ const MessageList = React.memo(function MessageList({
   messages,
   isLoading,
   tripName,
+  itineraryMarkdown,
   inputDisabled,
   onSend,
 }: MessageListProps) {
@@ -51,6 +55,11 @@ const MessageList = React.memo(function MessageList({
   const hasStreamingAssistant = useMemo(() => (
     messages.some(msg => msg.type === 'assistant' && msg.metadata?.streaming)
   ), [messages]);
+  const suggestions = useMemo(
+    () => buildChatSuggestions(tripName, itineraryMarkdown),
+    [tripName, itineraryMarkdown]
+  );
+  const hasItineraryContent = itineraryMarkdown.trim().length > 0;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -87,22 +96,15 @@ const MessageList = React.memo(function MessageList({
 
           <p className="text-sm max-w-sm mb-6" style={{ color: 'hsl(var(--text-secondary))', lineHeight: 1.7 }}>
             {tripName
-              ? 'Pick a starting point below, or just start typing what you have in mind.'
+              ? (hasItineraryContent
+                ? 'Here are a few smart next steps based on your itinerary, or just start typing what you have in mind.'
+                : 'Here are a few smart ways to get started, or just start typing what you have in mind.')
               : 'Create a new trip to start planning your next adventure with your personal travel agent.'}
           </p>
 
-          {tripName && (
+          {tripName && suggestions.length > 0 && (
             <div className="flex flex-wrap gap-2 justify-center">
-              {[
-                {
-                  label: 'Start a new trip',
-                  prompt: 'I am planning a new trip. Please walk me through the planning interview.',
-                },
-                {
-                  label: 'Use an existing itinerary',
-                  prompt: 'I already have a trip plan. Ask me to upload files or paste my itinerary and bookings so you can help improve it.',
-                },
-              ].map((suggestion, i) => (
+              {suggestions.map((suggestion, i) => (
                 <button
                   key={suggestion.label}
                   type="button"
@@ -164,6 +166,7 @@ export function ChatPanel({
   onCancel,
   onUploadFiles,
   tripName,
+  itineraryMarkdown,
   conversationTitle,
   textareaRef: externalTextareaRef,
 }: ChatPanelProps) {
@@ -197,6 +200,7 @@ export function ChatPanel({
         messages={messages}
         isLoading={isLoading}
         tripName={tripName}
+        itineraryMarkdown={itineraryMarkdown}
         inputDisabled={inputDisabled}
         onSend={onSend}
       />
