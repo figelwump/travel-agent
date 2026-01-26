@@ -110,6 +110,7 @@ const App: React.FC = () => {
   const newTripInputRef = useRef<HTMLInputElement>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [tasksRefreshToken, setTasksRefreshToken] = useState(0);
+  const [conversationProgress, setConversationProgress] = useState<Record<string, boolean>>({});
 
   // URL routing - store initial route from URL on mount
   const initialRouteRef = useRef<{ tripId: string | null; conversationId: string | null } | null>(null);
@@ -186,6 +187,41 @@ const App: React.FC = () => {
   const activeConversation = useMemo(() => conversations.find(c => c.id === activeConversationId) ?? null, [conversations, activeConversationId]);
   const activeTripName = activeTrip?.name ?? null;
 
+  useEffect(() => {
+    if (!activeConversationId) return;
+    setConversationProgress(prev => {
+      const isBusy = isLoading;
+      if (isBusy) {
+        if (prev[activeConversationId]) return prev;
+        return { ...prev, [activeConversationId]: true };
+      }
+      if (!prev[activeConversationId]) return prev;
+      const next = { ...prev };
+      delete next[activeConversationId];
+      return next;
+    });
+  }, [activeConversationId, isLoading]);
+
+  useEffect(() => {
+    if (conversations.length === 0) {
+      setConversationProgress({});
+      return;
+    }
+    setConversationProgress(prev => {
+      const validIds = new Set(conversations.map(c => c.id));
+      let mutated = false;
+      const next: Record<string, boolean> = {};
+      for (const [key, value] of Object.entries(prev)) {
+        if (!validIds.has(key)) {
+          mutated = true;
+          continue;
+        }
+        next[key] = value;
+      }
+      return mutated ? next : prev;
+    });
+  }, [conversations]);
+
   // Single WebSocket connection for all components
   const { isConnected, sendMessage } = useWebSocket({
     url: wsUrl,
@@ -205,6 +241,14 @@ const App: React.FC = () => {
           console.log('Connected to server:', message.message);
           setConnectionError(null);
           setHasEverConnected(true);
+          break;
+        }
+        case 'session_info': {
+          if (message.tripId !== activeTripId || message.conversationId !== activeConversationId) break;
+          if (typeof message.isActive === 'boolean') {
+            setIsLoading(message.isActive);
+            queryInProgressRef.current = message.isActive;
+          }
           break;
         }
         case 'scheduler_tasks_updated': {
@@ -749,6 +793,7 @@ const App: React.FC = () => {
     setMessages([]);
     setItineraryMarkdown('');
     setIsLoading(false);
+    setConversationProgress({});
     streamingMessageIdRef.current = null;
     toolActivityMessageIdRef.current = null;
     toolUseToMessageRef.current = {};
@@ -837,6 +882,7 @@ const App: React.FC = () => {
     setItineraryMarkdown('');
     setDraftsByTrip({});
     setDraftHeightsByTrip({});
+    setConversationProgress({});
   };
 
   const canType = Boolean(isConnected && activeTripId && activeConversationId);
@@ -923,6 +969,7 @@ const App: React.FC = () => {
     setMessages([]);
     setItineraryMarkdown('');
     setIsLoading(false);
+    setConversationProgress({});
     streamingMessageIdRef.current = null;
     toolActivityMessageIdRef.current = null;
     toolUseToMessageRef.current = {};
@@ -969,6 +1016,7 @@ const App: React.FC = () => {
         setActiveConversationId(null);
         setMessages([]);
         setIsLoading(false);
+        setConversationProgress({});
         streamingMessageIdRef.current = null;
         toolActivityMessageIdRef.current = null;
         toolUseToMessageRef.current = {};
@@ -996,6 +1044,7 @@ const App: React.FC = () => {
     toolUseToMessageRef.current = {};
     queryInProgressRef.current = true;
     setIsLoading(true);
+    setConversationProgress(prev => (prev[res.data.id] ? prev : { ...prev, [res.data.id]: true }));
     const timestamp = new Date().toISOString();
     const userMessage: Message = { id: Date.now().toString(), type: 'user', content: prompt, timestamp };
     setMessages([userMessage]);
@@ -1011,6 +1060,7 @@ const App: React.FC = () => {
     toolActivityMessageIdRef.current = null;
     toolUseToMessageRef.current = {};
     setIsLoading(true);
+    setConversationProgress(prev => (prev[activeConversationId] ? prev : { ...prev, [activeConversationId]: true }));
     sendMessage({ type: 'chat', tripId: activeTripId, conversationId: activeConversationId, content: text });
   }, [activeTripId, activeConversationId, sendMessage]);
 
@@ -1050,6 +1100,12 @@ const App: React.FC = () => {
     streamingMessageIdRef.current = null;
     toolActivityMessageIdRef.current = null;
     toolUseToMessageRef.current = {};
+    setConversationProgress(prev => {
+      if (!prev[activeConversationId]) return prev;
+      const next = { ...prev };
+      delete next[activeConversationId];
+      return next;
+    });
   }, [activeTripId, activeConversationId, sendMessage]);
 
   const handleUploadFiles = useCallback(async (files: FileList) => {
@@ -1278,18 +1334,27 @@ const App: React.FC = () => {
                         {new Date(c.createdAt).toLocaleDateString()}
                       </span>
                     </button>
-                    <button
-                      type="button"
-                      className="chat-delete-btn"
-                      title="Delete chat"
-                      aria-label={`Delete ${c.title}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handleDeleteConversation(c);
-                      }}
-                    >
-                      <TrashIcon />
-                    </button>
+                    <div className="chat-list-actions">
+                      {conversationProgress[c.id] && (
+                        <div className="chat-progress busy" aria-hidden="true">
+                          <span className="chat-progress-dot" />
+                          <span className="chat-progress-dot" />
+                          <span className="chat-progress-dot" />
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        className="chat-delete-btn"
+                        title="Delete chat"
+                        aria-label={`Delete ${c.title}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDeleteConversation(c);
+                        }}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

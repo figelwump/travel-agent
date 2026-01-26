@@ -711,6 +711,45 @@
   color: inherit;
 }
 
+.chat-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.chat-progress {
+  --progress-color: hsl(var(--text-tertiary) / 0.6);
+  --progress-speed: 1.6s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 10px;
+  padding: 0 2px;
+}
+
+.chat-progress.busy {
+  --progress-color: hsl(var(--accent-primary));
+  --progress-speed: 0.9s;
+}
+
+.chat-progress-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--progress-color);
+  opacity: 0.7;
+  animation: chat-progress-bounce var(--progress-speed) ease-in-out infinite;
+}
+
+.chat-progress-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.chat-progress-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
 .chat-list-item::before {
   content: '';
   position: absolute;
@@ -791,6 +830,24 @@
 .chat-delete-btn:focus-visible {
   outline: 2px solid hsl(var(--accent-primary));
   outline-offset: 2px;
+}
+
+@keyframes chat-progress-bounce {
+  0%,
+  100% {
+    transform: translateY(0) scale(0.8);
+    opacity: 0.45;
+  }
+  40% {
+    transform: translateY(-2px) scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-progress-dot {
+    animation: none;
+  }
 }
 
 .new-chat-btn {
