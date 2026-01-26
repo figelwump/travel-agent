@@ -23,6 +23,8 @@ function parseLocalDateTime(value: string): { year: number; month: number; day: 
   return { year, month, day, hour, minute, second };
 }
 
+type LocalParts = { year: number; month: number; day: number; hour: number; minute: number; second: number };
+
 function getTimeZoneOffset(date: Date, timeZone: string): number {
   const dtf = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -46,6 +48,45 @@ function getTimeZoneOffset(date: Date, timeZone: string): number {
   return asUtc - date.getTime();
 }
 
+function getLocalParts(date: Date, timeZone: string): LocalParts | null {
+  try {
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    const parts = dtf.formatToParts(date);
+    const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    const year = Number(lookup.year);
+    const month = Number(lookup.month);
+    const day = Number(lookup.day);
+    const hour = Number(lookup.hour);
+    const minute = Number(lookup.minute);
+    const second = Number(lookup.second);
+    if (!year || !month || !day || Number.isNaN(hour) || Number.isNaN(minute) || Number.isNaN(second)) {
+      return null;
+    }
+    return { year, month, day, hour, minute, second };
+  } catch {
+    return null;
+  }
+}
+
+function makeDateInTimeZone(parts: LocalParts, timeZone: string): Date | null {
+  const utcCandidate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second));
+  try {
+    const offset = getTimeZoneOffset(utcCandidate, timeZone);
+    return new Date(utcCandidate.getTime() - offset);
+  } catch {
+    return null;
+  }
+}
+
 function parseRunAt(runAt: string, timezone: string): Date | null {
   if (hasTimezoneOffset(runAt)) {
     const date = new Date(runAt);
@@ -62,6 +103,44 @@ function parseRunAt(runAt: string, timezone: string): Date | null {
   } catch {
     return null;
   }
+}
+
+function getRunAtTimeOfDay(runAt: string, timezone: string): Pick<LocalParts, "hour" | "minute" | "second"> | null {
+  if (!runAt) return null;
+  if (hasTimezoneOffset(runAt)) {
+    const date = new Date(runAt);
+    if (Number.isNaN(date.getTime())) return null;
+    const local = getLocalParts(date, timezone);
+    if (!local) return null;
+    return { hour: local.hour, minute: local.minute, second: local.second };
+  }
+  const parts = parseLocalDateTime(runAt);
+  if (!parts) return null;
+  return { hour: parts.hour, minute: parts.minute, second: parts.second };
+}
+
+function shouldRepeatDaily(task: ScheduledTask): boolean {
+  if (task.options?.deleteAfterRun) return false;
+  return task.type === "email-reminder";
+}
+
+function calculateNextDailyRun(task: ScheduledTask, now: Date): Date | null {
+  const timezone = task.schedule?.timezone || "UTC";
+  const timeOfDay = getRunAtTimeOfDay(task.schedule?.runAt, timezone);
+  if (!timeOfDay) return null;
+  const today = getLocalParts(now, timezone);
+  if (!today) return null;
+  return makeDateInTimeZone(
+    {
+      year: today.year,
+      month: today.month,
+      day: today.day + 1,
+      hour: timeOfDay.hour,
+      minute: timeOfDay.minute,
+      second: timeOfDay.second,
+    },
+    timezone,
+  );
 }
 
 export class Scheduler {
@@ -115,13 +194,38 @@ export class Scheduler {
             await deleteTask(task.id);
             logTs(`[Scheduler] Deleted task ${task.id} after run`);
           } else {
-            await updateTask(task.id, {
-              lastRun: nowIso(),
-              enabled: false,
-              nextRun: null,
-              runAttempts: 0,
-              lastError: undefined,
-            });
+            if (shouldRepeatDaily(task)) {
+              const nextRun = calculateNextDailyRun(task, now);
+              const nextRunIso = nextRun ? nextRun.toISOString() : null;
+              if (nextRunIso) {
+                await updateTask(task.id, {
+                  lastRun: nowIso(),
+                  enabled: task.enabled,
+                  nextRun: nextRunIso,
+                  schedule: task.schedule
+                    ? { ...task.schedule, runAt: nextRunIso }
+                    : task.schedule,
+                  runAttempts: 0,
+                  lastError: undefined,
+                });
+              } else {
+                await updateTask(task.id, {
+                  lastRun: nowIso(),
+                  enabled: false,
+                  nextRun: null,
+                  runAttempts: 0,
+                  lastError: "Unable to schedule next reminder run.",
+                });
+              }
+            } else {
+              await updateTask(task.id, {
+                lastRun: nowIso(),
+                enabled: false,
+                nextRun: null,
+                runAttempts: 0,
+                lastError: undefined,
+              });
+            }
           }
         } catch (err: any) {
           const attempts = (task.runAttempts ?? 0) + 1;
