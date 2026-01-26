@@ -5,6 +5,7 @@ import * as storage from "./storage";
 import * as fs from "fs/promises";
 import { createTripTools } from "./tools";
 import { logTs } from "./log";
+import { checkTitleEligibility, generateTitle } from "./title-generator";
 
 function createTripMcpServer(
   tripId: string,
@@ -193,6 +194,8 @@ export class ConversationSession {
     startedAt: string;
     completedAt?: string;
   }>();
+  private titleDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private titleGenerationInFlight = false;
   private toolTimings = new Map<string, {
     id: string;
     name: string;
@@ -422,6 +425,88 @@ export class ConversationSession {
     const title = generateTitleFromMessage(this.lastUserMessage);
     if (this.isDefaultTitle(title) || title === meta.title) return;
     await storage.updateConversation(this.tripId, this.conversationId, { title });
+  }
+
+  private scheduleTitleGeneration(): void {
+    // Clear any existing debounce timer
+    if (this.titleDebounceTimer) {
+      clearTimeout(this.titleDebounceTimer);
+      this.titleDebounceTimer = null;
+    }
+
+    // Don't schedule if a query is in flight or title generation is already running
+    if (this.queryPromise || this.titleGenerationInFlight) {
+      logTs(`[TitleGeneration] Not scheduling: queryInFlight=${!!this.queryPromise} titleInFlight=${this.titleGenerationInFlight}`);
+      return;
+    }
+
+    logTs(`[TitleGeneration] Scheduling title generation in 15 seconds for ${this.conversationId}`);
+
+    // Debounce: wait 15 seconds before generating
+    this.titleDebounceTimer = setTimeout(() => {
+      this.titleDebounceTimer = null;
+      logTs(`[TitleGeneration] Timer fired, running title generation`);
+      this.runTitleGeneration().catch((err) => {
+        console.error("[TitleGeneration] Background error:", err);
+      });
+    }, 15000);
+  }
+
+  private async runTitleGeneration(): Promise<void> {
+    // Don't run if query started during debounce
+    if (this.queryPromise) {
+      return;
+    }
+
+    this.titleGenerationInFlight = true;
+    try {
+      const meta = await storage.getConversation(this.tripId, this.conversationId);
+      if (!meta) return;
+
+      const messages = await storage.readMessages(this.tripId, this.conversationId, 10);
+      const eligibility = checkTitleEligibility(meta.title, meta.titleSource, messages);
+
+      if (!eligibility.eligible) {
+        logTs(`[TitleGeneration] Skipped: ${eligibility.reason}`);
+        return;
+      }
+
+      const trip = await storage.getTrip(this.tripId);
+      const tripName = trip?.name ?? "Trip";
+
+      logTs(`[TitleGeneration] Generating title for conversation ${this.conversationId}`);
+      const newTitle = await generateTitle(tripName, messages, this.agentClient);
+
+      if (!newTitle) {
+        logTs("[TitleGeneration] No title returned");
+        return;
+      }
+
+      // Re-check meta in case user renamed during generation
+      const freshMeta = await storage.getConversation(this.tripId, this.conversationId);
+      if (freshMeta?.titleSource === "user") {
+        logTs("[TitleGeneration] User renamed during generation, skipping update");
+        return;
+      }
+
+      await storage.updateConversation(this.tripId, this.conversationId, {
+        title: newTitle,
+        titleSource: "auto",
+        titleUpdatedAt: new Date().toISOString(),
+      });
+
+      logTs(`[TitleGeneration] Updated title to: ${newTitle}`);
+
+      // Broadcast title update to connected clients
+      this.broadcast({
+        type: "conversation_title_updated",
+        conversationId: this.conversationId,
+        title: newTitle,
+        tripId: this.tripId,
+      });
+    } finally {
+      this.titleGenerationInFlight = false;
+    }
   }
 
   private handleStreamEvent(event: any) {
@@ -708,6 +793,7 @@ export class ConversationSession {
     this.queryPromise = (async () => {
       this.cancelRequested = false;
       this.resultSent = false;
+      let querySucceeded = false;
       const abortController = new AbortController();
       this.abortController = abortController;
       try {
@@ -761,6 +847,7 @@ export class ConversationSession {
         })) {
           await this.handleSdkMessage(message);
         }
+        querySucceeded = true;
       } catch (err: any) {
         const errMsg = err?.message ? String(err.message) : "";
         const isAbort = err?.name === "AbortError" || errMsg.toLowerCase().includes("abort");
@@ -786,6 +873,10 @@ export class ConversationSession {
             tripId: this.tripId,
             conversationId: this.conversationId,
           });
+        }
+        // Schedule title generation after query completes successfully
+        if (querySucceeded) {
+          this.scheduleTitleGeneration();
         }
       }
     })();

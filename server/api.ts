@@ -226,6 +226,26 @@ export async function handleApiRequest(req: Request, url: URL, ctx?: HeaderCtx):
 
   if (segments[3] === "conversations" && segments[4] && segments.length === 5) {
     const conversationId = segments[4];
+    if (req.method === "GET") {
+      const conversation = await storage.getConversation(tripId, conversationId);
+      if (!conversation) return notFound(ctx);
+      return jsonResponse(conversation, 200, ctx);
+    }
+    if (req.method === "PATCH") {
+      const body = await parseJson(req);
+      if (!body || typeof body !== "object") return badRequest("invalid request body", ctx);
+      const patch: Partial<storage.Conversation> = {};
+      if (typeof body.title === "string") {
+        patch.title = body.title.trim().slice(0, 80) || "Chat";
+        // Mark as user-set title when manually renamed via API
+        patch.titleSource = "user";
+        patch.titleUpdatedAt = new Date().toISOString();
+      }
+      if (Object.keys(patch).length === 0) return badRequest("no valid fields to update", ctx);
+      await storage.updateConversation(tripId, conversationId, patch);
+      const updated = await storage.getConversation(tripId, conversationId);
+      return jsonResponse(updated, 200, ctx);
+    }
     if (req.method === "DELETE") {
       const deleted = await storage.deleteConversation(tripId, conversationId);
       if (!deleted) return notFound(ctx);
