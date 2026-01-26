@@ -111,7 +111,7 @@ export class WebSocketHandler {
         if (data.newConversation) {
           session.endConversation();
         }
-        await session.addUserMessage(data.content);
+        await session.addUserMessage(data.content, ws);
         return;
       }
 

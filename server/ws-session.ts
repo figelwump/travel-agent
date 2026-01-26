@@ -209,6 +209,9 @@ export class ConversationSession {
   }>();
   private handledToolResults = new Set<string>();
   private mcpServer: ReturnType<typeof createSdkMcpServer>;
+  // Track the client that initiated the current query so we can send them the result
+  // even if they switch to a different conversation
+  private queryInitiator: WSClient | null = null;
 
   constructor({ tripId, conversationId }: ConversationSessionParams) {
     this.tripId = tripId;
@@ -245,7 +248,7 @@ export class ConversationSession {
     this.toolTimings.clear();
     this.handledToolResults.clear();
     this.resultSent = true;
-    this.broadcast({
+    this.broadcastResult({
       type: "result",
       success: false,
       error: "cancelled",
@@ -264,6 +267,35 @@ export class ConversationSession {
         this.subscribers.delete(client);
       }
     }
+  }
+
+  // Broadcast result message, also sending to the query initiator if they're no longer subscribed
+  private broadcastResult(message: any) {
+    const msgStr = JSON.stringify(message);
+    const sentTo = new Set<WSClient>();
+
+    // Send to all current subscribers
+    for (const client of this.subscribers) {
+      try {
+        client.send(msgStr);
+        sentTo.add(client);
+      } catch (err) {
+        console.error("Error broadcasting to client:", err);
+        this.subscribers.delete(client);
+      }
+    }
+
+    // Also send to the query initiator if they switched to a different conversation
+    if (this.queryInitiator && !sentTo.has(this.queryInitiator)) {
+      try {
+        this.queryInitiator.send(msgStr);
+      } catch (err) {
+        console.error("Error sending result to query initiator:", err);
+      }
+    }
+
+    // Clear the initiator after sending result
+    this.queryInitiator = null;
   }
 
   private isToolAllowedForSession(toolName?: string | null): boolean {
@@ -769,10 +801,12 @@ export class ConversationSession {
     }
   }
 
-  async addUserMessage(content: string): Promise<void> {
+  async addUserMessage(content: string, initiator?: WSClient): Promise<void> {
     if (this.queryPromise) await this.queryPromise;
     await this.ensureConversationLoaded();
     this.lastUserMessage = content;
+    // Track who initiated this query so we can send them the result even if they switch chats
+    this.queryInitiator = initiator ?? null;
 
     logTs(`\n${"=".repeat(60)}`);
     logTs(`[UserMessage] tripId=${this.tripId} convId=${this.conversationId}`);
@@ -867,7 +901,7 @@ export class ConversationSession {
         // Ensure a result is always sent so the client knows the query is done
         if (!this.resultSent) {
           this.resultSent = true;
-          this.broadcast({
+          this.broadcastResult({
             type: "result",
             success: true,
             tripId: this.tripId,
@@ -991,7 +1025,7 @@ export class ConversationSession {
       if (this.resultSent) return;
       this.resultSent = true;
       if (subtype === "success") {
-        this.broadcast({
+        this.broadcastResult({
           type: "result",
           success: true,
           result: (message as any).result,
@@ -1001,7 +1035,7 @@ export class ConversationSession {
           conversationId: this.conversationId,
         });
       } else {
-        this.broadcast({ type: "result", success: false, error: subtype, tripId: this.tripId, conversationId: this.conversationId });
+        this.broadcastResult({ type: "result", success: false, error: subtype, tripId: this.tripId, conversationId: this.conversationId });
       }
       // Check if itinerary was modified by agent tools (Write/Edit)
       await this.checkAndBroadcastItineraryChange();
