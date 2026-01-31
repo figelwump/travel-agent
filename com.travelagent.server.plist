@@ -7,9 +7,7 @@
 
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Users/agents/.bun/bin/bun</string>
-		<string>run</string>
-		<string>start</string>
+		<string>/Users/agents/GiantThings/repos/travel-agent/scripts/start-server.sh</string>
 	</array>
 
 	<key>WorkingDirectory</key>

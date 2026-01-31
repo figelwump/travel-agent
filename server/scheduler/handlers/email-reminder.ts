@@ -22,15 +22,22 @@ function getResendClient(): Resend {
 }
 
 export async function sendReminderEmail(task: ScheduledTask): Promise<void> {
+  const to = process.env.NOTIFICATION_EMAIL;
+  if (!to) {
+    logTs(`[Scheduler] Skipping email reminder for task=${task.id}: NOTIFICATION_EMAIL not configured`);
+    return;
+  }
+
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    logTs(`[Scheduler] Skipping email reminder for task=${task.id}: RESEND_API_KEY not configured`);
+    return;
+  }
+
   const now = Date.now();
   const elapsed = now - lastSendAtMs;
   if (elapsed < MIN_INTERVAL_MS) {
     await sleep(MIN_INTERVAL_MS - elapsed);
-  }
-
-  const to = process.env.NOTIFICATION_EMAIL;
-  if (!to) {
-    throw new Error("NOTIFICATION_EMAIL not configured.");
   }
 
   const from = process.env.NOTIFICATION_FROM || to;
