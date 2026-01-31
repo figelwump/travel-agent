@@ -341,7 +341,12 @@ export class ConversationSession {
   private async ensureConversationLoaded(): Promise<void> {
     if (this.sdkSessionId) return;
     const meta = await storage.getConversation(this.tripId, this.conversationId);
-    if (meta?.sdkSessionId) this.sdkSessionId = meta.sdkSessionId;
+    if (meta?.sdkSessionId) {
+      // Load the session ID, but mark that it's untrusted
+      // If resume fails, the error handler will clear it
+      this.sdkSessionId = meta.sdkSessionId;
+      logTs(`[ConversationSession] Loaded session ID ${this.sdkSessionId} for conversation ${this.conversationId}`);
+    }
   }
 
   private async buildTripContextPrompt(): Promise<{
@@ -828,12 +833,16 @@ export class ConversationSession {
       this.cancelRequested = false;
       this.resultSent = false;
       let querySucceeded = false;
+      let attemptingResume = false;
       const abortController = new AbortController();
       this.abortController = abortController;
       try {
         const ctxPrompt = await this.buildTripContextPrompt();
         logTs(`[TripContext]\n${ctxPrompt.prompt}`);
+
+        // Prepare resume options. If resume fails, we'll catch and retry without it.
         const options = this.sdkSessionId ? { resume: this.sdkSessionId } : {};
+        attemptingResume = !!this.sdkSessionId;
 
         const allowReadItinerary = shouldAllowReadItinerary(content, ctxPrompt.itineraryTruncated);
         const allowReadContext = shouldAllowReadContext(content, ctxPrompt.contextTruncated);
@@ -885,7 +894,26 @@ export class ConversationSession {
       } catch (err: any) {
         const errMsg = err?.message ? String(err.message) : "";
         const isAbort = err?.name === "AbortError" || errMsg.toLowerCase().includes("abort");
-        if (!this.cancelRequested && !isAbort) {
+
+        // Check if this is an invalid session resume error
+        const isInvalidSessionError = attemptingResume && (
+          errMsg.includes("No conversation found with session ID") ||
+          errMsg.includes("Claude Code process exited with code 1") ||
+          errMsg.includes("session_id")
+        );
+
+        if (isInvalidSessionError && this.sdkSessionId) {
+          const invalidSessionId = this.sdkSessionId;
+          logTs(`[SessionError] Invalid session ID ${invalidSessionId}, clearing for conversation ${this.conversationId}`);
+
+          // Clear the invalid session ID from both memory and storage
+          this.sdkSessionId = null;
+          await storage.updateConversation(this.tripId, this.conversationId, { sdkSessionId: null }).catch(err => {
+            console.error("[SessionError] Failed to clear invalid session ID from storage:", err);
+          });
+
+          this.broadcastError("Conversation session reset. Please send your message again.");
+        } else if (!this.cancelRequested && !isAbort) {
           console.error("Agent query failed", err);
           this.broadcastError(errMsg || "Query failed");
         }
