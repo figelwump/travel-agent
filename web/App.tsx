@@ -128,7 +128,6 @@ const App: React.FC = () => {
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [passwordInput, setPasswordInput] = useState('');
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [hasEverConnected, setHasEverConnected] = useState(false);
   const streamingMessageIdRef = useRef<string | null>(null);
   const toolActivityMessageIdRef = useRef<string | null>(null);
   const toolUseToMessageRef = useRef<Record<string, string>>({});
@@ -284,7 +283,6 @@ const App: React.FC = () => {
         case 'connected': {
           console.log('Connected to server:', message.message);
           setConnectionError(null);
-          setHasEverConnected(true);
           break;
         }
         case 'session_info': {
@@ -674,13 +672,12 @@ const App: React.FC = () => {
       const msg = 'Access denied or connection blocked. Verify your password.';
       console.error(msg, evt);
       setConnectionError(msg);
-      if (!hasEverConnected) {
-        if (typeof window !== 'undefined') {
-          window.localStorage.removeItem(CREDENTIALS_STORAGE_KEY);
-        }
-        setCredentials(null);
-        setPasswordInput('');
+      // Always clear credentials on auth error so user can re-enter password
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(CREDENTIALS_STORAGE_KEY);
       }
+      setCredentials(null);
+      setPasswordInput('');
     },
     onDisconnect: () => {
       if (!credentials) return;
