@@ -53,6 +53,48 @@ const BellIcon = ({ enabled }: { enabled: boolean }) => (
   </svg>
 );
 
+// Mobile navigation icons
+const ListIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <line x1="8" y1="6" x2="21" y2="6" />
+    <line x1="8" y1="12" x2="21" y2="12" />
+    <line x1="8" y1="18" x2="21" y2="18" />
+    <line x1="3" y1="6" x2="3.01" y2="6" />
+    <line x1="3" y1="12" x2="3.01" y2="12" />
+    <line x1="3" y1="18" x2="3.01" y2="18" />
+  </svg>
+);
+
+const MessageIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);
+
+const MapIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+    <line x1="8" y1="2" x2="8" y2="18" />
+    <line x1="16" y1="6" x2="16" y2="22" />
+  </svg>
+);
+
+const BackArrowIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M19 12H5M12 19l-7-7 7-7" />
+  </svg>
+);
+
+const CompassIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10" />
+    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+  </svg>
+);
+
+type MobileView = 'trips' | 'itinerary';
+type MobileTripsSubview = 'trips' | 'chats' | 'conversation';
+
 function authHeader(credentials: Credentials | null): string | null {
   if (!credentials?.password) return null;
   return `Basic ${btoa(`user:${credentials.password}`)}`;
@@ -111,6 +153,8 @@ const App: React.FC = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [tasksRefreshToken, setTasksRefreshToken] = useState(0);
   const [conversationProgress, setConversationProgress] = useState<Record<string, boolean>>({});
+  const [mobileView, setMobileView] = useState<MobileView>('trips');
+  const [mobileTripsSubview, setMobileTripsSubview] = useState<MobileTripsSubview>('trips');
 
   // URL routing - store initial route from URL on mount
   const initialRouteRef = useRef<{ tripId: string | null; conversationId: string | null } | null>(null);
@@ -1085,13 +1129,6 @@ const App: React.FC = () => {
 
   const mapRequestPrompt =
     "Generate a trip map for my itinerary route. Use the current itinerary to determine the ordered destinations. If the route is unclear, ask me for the ordered list.";
-  const regenerateItineraryPrompt =
-    "Fully regenerate the itinerary using the latest itinerary conventions and follow the conventions provided in your system prompt. Do not regenerate the map unless destinations changed.";
-
-  const handleRegenerateItinerary = useCallback(() => {
-    if (isLoading || !activeTripId) return;
-    void handleStartConversationWithPrompt(regenerateItineraryPrompt, 'Regenerate itinerary');
-  }, [activeTripId, handleStartConversationWithPrompt, isLoading, regenerateItineraryPrompt]);
 
   const handleRequestMap = useCallback(() => {
     if (!activeTripId) return;
@@ -1209,7 +1246,7 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col h-screen" style={{ background: 'hsl(var(--bg-primary))' }}>
       {/* Top header with branding and trip pills */}
-      <header className="px-5 py-3" style={{
+      <header className="app-header px-5 py-3" style={{
         background: 'linear-gradient(180deg, hsl(var(--bg-secondary)) 0%, hsl(var(--bg-primary)) 100%)',
         borderBottom: '1px solid hsl(var(--border-subtle))'
       }}>
@@ -1297,7 +1334,7 @@ const App: React.FC = () => {
       </header>
 
       {/* Main content area with sidebar */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden app-main-content">
         {/* Collapsible Chat History Sidebar - hidden in full-width mode */}
         {!itineraryFullWidth && (
         <aside
@@ -1346,7 +1383,10 @@ const App: React.FC = () => {
                     <button
                       type="button"
                       className="chat-list-main"
-                      onClick={() => handleSelectConversation(c.id)}
+                      onClick={() => {
+                        handleSelectConversation(c.id);
+                        setMobileTripsSubview('conversation');
+                      }}
                     >
                       <span className="chat-list-title">{c.title}</span>
                       <span className="chat-list-date">
@@ -1407,10 +1447,10 @@ const App: React.FC = () => {
         )}
 
         {/* Main chat + itinerary area */}
-        <main className="flex-1 flex overflow-hidden p-4 gap-4">
+        <main className="app-main-area flex-1 flex overflow-hidden p-4 gap-4">
           {/* Chat Panel - hidden in full-width mode */}
           {!itineraryFullWidth && (
-          <div className={`terminal-container overflow-hidden ${showItinerary ? 'flex-1' : 'flex-1'}`}>
+          <div className={`chat-panel-container terminal-container overflow-hidden ${showItinerary ? 'flex-1' : 'flex-1'} ${mobileView === 'trips' && mobileTripsSubview === 'conversation' ? 'mobile-visible mobile-has-header' : ''}`}>
             <ChatPanel
               isConnected={isConnected}
               isLoading={isLoading}
@@ -1433,7 +1473,7 @@ const App: React.FC = () => {
 
           {/* Right-side Pane */}
           {(showItinerary || itineraryFullWidth) && (
-            <div className="terminal-container overflow-hidden flex-1 flex flex-col">
+            <div className={`terminal-container overflow-hidden flex-1 flex flex-col itinerary-pane-container ${mobileView === 'itinerary' ? 'mobile-visible' : ''}`}>
               <div className="pane-switcher">
                 <button
                   type="button"
@@ -1454,11 +1494,11 @@ const App: React.FC = () => {
                 {rightPaneView === 'itinerary' ? (
                   <ItineraryPane
                     tripId={activeTripId}
+                    tripName={activeTrip?.name}
                     credentials={credentials}
                     markdown={itineraryMarkdown}
                     onRefresh={refreshItinerary}
                     onRequestMap={activeTripId ? handleRequestMap : undefined}
-                    onRegenerateItinerary={activeTripId ? handleRegenerateItinerary : undefined}
                     onDeleteTrip={handleDeleteTrip}
                     onCollapse={handleCollapseItinerary}
                     isFullWidth={itineraryFullWidth}
@@ -1572,6 +1612,168 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Mobile Trips Panel (trips list) */}
+      <div className={`mobile-panel mobile-trips-panel ${mobileView === 'trips' && mobileTripsSubview === 'trips' ? 'visible' : ''}`}>
+        <div className="mobile-panel-header">
+          <h2 className="mobile-panel-title">My Trips</h2>
+          <button
+            type="button"
+            className="mobile-panel-action"
+            onClick={handleCreateTrip}
+          >
+            <PlusIcon /> New
+          </button>
+        </div>
+        <div className="mobile-panel-content">
+          {trips.length === 0 ? (
+            <div className="mobile-empty-state">
+              <div className="mobile-empty-icon">
+                <CompassIcon />
+              </div>
+              <p>No trips yet</p>
+              <button
+                type="button"
+                className="btn-primary mt-4"
+                onClick={handleCreateTrip}
+              >
+                Plan your first trip
+              </button>
+            </div>
+          ) : (
+            <div className="mobile-trips-list">
+              {trips.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`mobile-trip-item ${t.id === activeTripId ? 'active' : ''}`}
+                  onClick={() => {
+                    handleSelectTrip(t.id);
+                    setMobileTripsSubview('chats');
+                  }}
+                >
+                  <div className="mobile-trip-icon">
+                    <CompassIcon />
+                  </div>
+                  <div className="mobile-trip-info">
+                    <span className="mobile-trip-name">{t.name}</span>
+                    <span className="mobile-trip-date">
+                      {new Date(t.updatedAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <ChevronRightIcon />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile Chats Panel (chat list for selected trip) */}
+      <div className={`mobile-panel mobile-chat-panel ${mobileView === 'trips' && mobileTripsSubview === 'chats' ? 'visible' : ''}`}>
+        <div className="mobile-panel-header">
+          <button
+            type="button"
+            className="mobile-back-btn"
+            onClick={() => setMobileTripsSubview('trips')}
+          >
+            <BackArrowIcon />
+            <span>Trips</span>
+          </button>
+          <h2 className="mobile-panel-title">{activeTrip?.name ?? 'Chats'}</h2>
+          <button
+            type="button"
+            className="mobile-panel-action"
+            onClick={handleCreateConversation}
+            disabled={!activeTripId}
+          >
+            <PlusIcon /> New
+          </button>
+        </div>
+        <div className="mobile-panel-content">
+          {conversations.length === 0 ? (
+            <div className="mobile-empty-state">
+              <div className="mobile-empty-icon">
+                <MessageIcon />
+              </div>
+              <p>No conversations yet</p>
+              <button
+                type="button"
+                className="btn-primary mt-4"
+                onClick={handleCreateConversation}
+              >
+                Start a conversation
+              </button>
+            </div>
+          ) : (
+            <div className="mobile-chat-list">
+              {conversations.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`mobile-chat-item ${c.id === activeConversationId ? 'active' : ''}`}
+                  onClick={() => {
+                    handleSelectConversation(c.id);
+                    setMobileTripsSubview('conversation');
+                  }}
+                >
+                  <div className="mobile-chat-info">
+                    <span className="mobile-chat-title">{c.title}</span>
+                    <span className="mobile-chat-date">
+                      {new Date(c.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  {conversationProgress[c.id] && (
+                    <div className="chat-progress busy" aria-hidden="true">
+                      <span className="chat-progress-dot" />
+                      <span className="chat-progress-dot" />
+                      <span className="chat-progress-dot" />
+                    </div>
+                  )}
+                  <ChevronRightIcon />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile Chat Conversation Header (back button) */}
+      <div className={`mobile-chat-header ${mobileView === 'trips' && mobileTripsSubview === 'conversation' ? 'visible' : ''}`}>
+        <button
+          type="button"
+          className="mobile-back-btn"
+          onClick={() => setMobileTripsSubview('chats')}
+        >
+          <BackArrowIcon />
+          <span>{activeTrip?.name ?? 'Chats'}</span>
+        </button>
+        <span className="mobile-chat-current-title">
+          {activeConversation?.title ?? 'Conversation'}
+        </span>
+      </div>
+
+      {/* Mobile Bottom Tab Bar */}
+      <nav className="mobile-tab-bar">
+        <div className="mobile-tab-bar-inner">
+          <button
+            type="button"
+            className={`mobile-tab-btn ${mobileView === 'trips' ? 'active' : ''}`}
+            onClick={() => setMobileView('trips')}
+          >
+            <span className="mobile-tab-icon"><CompassIcon /></span>
+            <span>Trips</span>
+          </button>
+          <button
+            type="button"
+            className={`mobile-tab-btn ${mobileView === 'itinerary' ? 'active' : ''}`}
+            onClick={() => setMobileView('itinerary')}
+          >
+            <span className="mobile-tab-icon"><MapIcon /></span>
+            <span>Itinerary</span>
+          </button>
+        </div>
+      </nav>
     </div>
   );
 };
