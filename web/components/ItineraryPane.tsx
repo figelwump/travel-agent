@@ -203,11 +203,11 @@ const RestoreIcon = () => (
 
 interface ItineraryPaneProps {
   tripId: string | null;
+  tripName?: string | null;
   credentials: Credentials | null;
   markdown: string;
   onRefresh: () => void;
   onRequestMap?: () => void;
-  onRegenerateItinerary?: () => void;
   onDeleteTrip?: () => Promise<void> | void;
   onCollapse?: () => void;
   isFullWidth?: boolean;
@@ -234,11 +234,11 @@ function withAuthToken(url: string, credentials: Credentials | null): string {
 
 export const ItineraryPane = React.memo(function ItineraryPane({
   tripId,
+  tripName,
   credentials,
   markdown,
   onRefresh,
   onRequestMap,
-  onRegenerateItinerary,
   onDeleteTrip,
   onCollapse,
   isFullWidth,
@@ -473,13 +473,28 @@ export const ItineraryPane = React.memo(function ItineraryPane({
           <button
             type="button"
             className="icon-btn"
-            onClick={onRegenerateItinerary}
-            disabled={!canInteract || isSaving || !onRegenerateItinerary}
-            title="Regenerate itinerary"
+            onClick={() => {
+              if (!markdown) return;
+              const blob = new Blob([markdown], { type: 'text/markdown' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              const slug = tripName
+                ? tripName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+                : 'trip';
+              a.download = `${slug}-itinerary.md`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }}
+            disabled={!markdown}
+            title="Download itinerary"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2l1.7 4.9L19 8l-5.3 1.1L12 14l-1.7-4.9L5 8l5.3-1.1L12 2z" />
-              <path d="M4 16l0.9 2.5L7 19l-2.1 0.5L4 22l-0.9-2.5L1 19l2.1-0.5L4 16z" />
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
           </button>
           <button
