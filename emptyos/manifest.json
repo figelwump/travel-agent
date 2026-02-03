@@ -1,0 +1,11 @@
+{
+  "id": "travel",
+  "name": "Travel Agent",
+  "description": "Plan trips and itineraries",
+  "ui": {
+    "type": "proxy",
+    "url": "http://127.0.0.1:5173",
+    "ws": true,
+    "color": "#2f6feb"
+  }
+}
