@@ -2,6 +2,9 @@
   "name": "travel-agent",
   "version": "0.1.0",
   "description": "Personal travel planning agent (chat + markdown itinerary)",
+  "bin": {
+    "travel-agent": "bin/travel-agent.cjs"
+  },
   "main": "server/server.ts",
   "type": "module",
   "scripts": {

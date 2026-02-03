@@ -27,6 +27,15 @@ bun run typecheck
 
 Use the CLI to run multi-turn chat sessions quickly and capture JSONL transcripts (plus optional Markdown).
 
+Optional: install the repo-local CLI wrapper so you can run `travel-agent` directly:
+
+```bash
+bun install
+bun link
+```
+
+You can also invoke the wrapper directly as `./bin/travel-agent.cjs`.
+
 ```bash
 bun run dev
 bun run cli session run --input docs/session.example.json --trip "Debug Trip" --conversation "Debug"
@@ -40,6 +49,14 @@ bun run cli session repl --trip "Debug Trip"
 bun run cli session replay debug/transcripts/session-123.jsonl
 ```
 
+Using the wrapper:
+
+```bash
+travel-agent session run --input docs/session.example.json --trip "Debug Trip" --conversation "Debug"
+travel-agent session repl --trip "Debug Trip"
+travel-agent session replay debug/transcripts/session-123.jsonl
+```
+
 Single message without a session file:
 
 ```bash
@@ -50,6 +67,12 @@ List trips (for grabbing IDs):
 
 ```bash
 bun run cli trips list
+```
+
+Or:
+
+```bash
+travel-agent trips list
 ```
 
 Auth + URL can be provided via environment:
