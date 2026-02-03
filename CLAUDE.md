@@ -45,25 +45,25 @@ Use this whenever possible to test a feature, verify a fix, debug issues, etc th
 
 Run a session (single message):
 ```bash
-TRAVEL_AGENT_URL=http://localhost:3002 bun run cli session run --message "..." --trip "Debug Trip"
+TRAVEL_AGENT_URL=http://localhost:3002 travel-agent session run --message "..." --trip "Debug Trip"
 ```
 By default, `--trip` creates a new trip even if a matching name exists. Use `--trip-id` or `--reuse-trip` when you need to reuse an existing trip.
 
 Run a multi-turn session:
 ```bash
-TRAVEL_AGENT_URL=http://localhost:3002 bun run cli session run --input docs/session.example.json --trip "Debug Trip"
+TRAVEL_AGENT_URL=http://localhost:3002 travel-agent session run --input docs/session.example.json --trip "Debug Trip"
 ```
 
 Working with an existing trip (by ID):
 ```bash
-TRAVEL_AGENT_URL=http://localhost:3002 bun run cli trips list
+TRAVEL_AGENT_URL=http://localhost:3002 travel-agent trips list
 # pick an id from the output, then:
-TRAVEL_AGENT_URL=http://localhost:3002 bun run cli session run --message "..." --trip-id <tripId>
+TRAVEL_AGENT_URL=http://localhost:3002 travel-agent session run --message "..." --trip-id <tripId>
 ```
 
 Creating a new trip via the CLI:
 ```bash
-TRAVEL_AGENT_URL=http://localhost:3002 bun run cli session run --message "..." --trip "New Trip Name"
+TRAVEL_AGENT_URL=http://localhost:3002 travel-agent session run --message "..." --trip "New Trip Name"
 ```
 CLI-created trips are deleted after the session by default; use `--no-cleanup` to keep them.
 
@@ -76,7 +76,7 @@ Transcripts are saved under `debug/transcripts/session-<timestamp>.jsonl`. Use t
 When testing prompt behavior against a real itinerary, copy the trip first so you don’t add debug chats or edits to the original trip.
 
 ```bash
-bun run cli trips copy --trip-id <id> --name "Trip Name (Copy)"
+travel-agent trips copy --trip-id <id> --name "Trip Name (Copy)"
 ```
 
 Notes:

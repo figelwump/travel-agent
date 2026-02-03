@@ -23,62 +23,56 @@ By default, trips are persisted under `~/.travelagent` (override with `TRAVEL_AG
 bun run typecheck
 ```
 
-## CLI Debug Sessions
+## CLI
 
-Use the CLI to run multi-turn chat sessions quickly and capture JSONL transcripts (plus optional Markdown).
+The `travel-agent` CLI provides commands for managing trips, conversations, and running debug sessions.
 
-Optional: install the repo-local CLI wrapper so you can run `travel-agent` directly:
+### Installation
+
+After cloning the repo, install and link the CLI:
 
 ```bash
 bun install
 bun link
 ```
 
-You can also invoke the wrapper directly as `./bin/travel-agent.cjs`.
+This makes `travel-agent` available globally.
+
+### Commands
 
 ```bash
-bun run dev
-bun run cli session run --input docs/session.example.json --trip "Debug Trip" --conversation "Debug"
+travel-agent --help                    # Show all commands and options
+travel-agent trips list                # List all trips
+travel-agent trips delete --trip-id <id>
+travel-agent trips copy --trip-id <id> [--name "New name"]
+travel-agent conversations list --trip-id <id>
+travel-agent conversations delete --trip-id <id> --conversation-id <id>
 ```
 
-Outputs a JSONL transcript to `debug/transcripts/session-<timestamp>.jsonl` by default. JSONL is also echoed to stdout by default (disable with `--no-stream`). Partial tokens are not emitted. Optional flags:
+### Debug Sessions
+
+Run multi-turn chat sessions and capture JSONL transcripts:
 
 ```bash
-bun run cli session run --input docs/session.example.json --trip "Debug Trip" --no-stream --markdown debug/transcripts/session.md
-bun run cli session repl --trip "Debug Trip"
-bun run cli session replay debug/transcripts/session-123.jsonl
-```
-
-Using the wrapper:
-
-```bash
-travel-agent session run --input docs/session.example.json --trip "Debug Trip" --conversation "Debug"
+travel-agent session run --input docs/session.example.json --trip "Debug Trip"
+travel-agent session run --message "Plan a 2-day Tokyo itinerary" --trip "Debug Trip"
 travel-agent session repl --trip "Debug Trip"
 travel-agent session replay debug/transcripts/session-123.jsonl
 ```
 
-Single message without a session file:
+Outputs a JSONL transcript to `debug/transcripts/session-<timestamp>.jsonl` by default. JSONL is also echoed to stdout (disable with `--no-stream`). Partial tokens are not emitted.
+
+Optional flags:
 
 ```bash
-bun run cli session run --message "Plan a 2-day Tokyo itinerary" --trip "Debug Trip"
+travel-agent session run --input docs/session.example.json --trip "Debug Trip" --no-stream --markdown debug/transcripts/session.md
 ```
 
-List trips (for grabbing IDs):
+### Environment Variables
 
 ```bash
-bun run cli trips list
-```
-
-Or:
-
-```bash
-travel-agent trips list
-```
-
-Auth + URL can be provided via environment:
-
-```bash
-TRAVEL_AGENT_URL=http://localhost:3001 TRAVEL_AGENT_PASSWORD=... bun run cli session run --input docs/session.example.json
+TRAVEL_AGENT_URL=http://localhost:3001   # Base URL (default)
+TRAVEL_AGENT_PASSWORD=...                # Password for Basic auth
 ```
 
 To suppress non-JSON output (useful for automation), add `--quiet`.

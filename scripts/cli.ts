@@ -926,15 +926,15 @@ async function replaySession(filePath: string): Promise<void> {
 
 function printHelp(): void {
   console.log(`Usage:
-  bun run cli trips list
-  bun run cli trips delete --trip-id <id>
-  bun run cli trips copy --trip-id <id> [--name "New name"] [--include-conversations]
-  bun run cli session run --input session.json [--trip-id <id> | --trip <name>] [--conversation-id <id> | --conversation <title>]
-  bun run cli session run --message "Hello" [--trip-id <id> | --trip <name>] [--conversation-id <id> | --conversation <title>]
-  bun run cli session repl [--trip-id <id> | --trip <name>] [--conversation-id <id> | --conversation <title>]
-  bun run cli conversations list --trip-id <id>
-  bun run cli conversations delete --trip-id <id> --conversation-id <id>
-  bun run cli session replay <transcript.jsonl>
+  travel-agent trips list
+  travel-agent trips delete --trip-id <id>
+  travel-agent trips copy --trip-id <id> [--name "New name"] [--include-conversations]
+  travel-agent session run --input session.json [--trip-id <id> | --trip <name>] [--conversation-id <id> | --conversation <title>]
+  travel-agent session run --message "Hello" [--trip-id <id> | --trip <name>] [--conversation-id <id> | --conversation <title>]
+  travel-agent session repl [--trip-id <id> | --trip <name>] [--conversation-id <id> | --conversation <title>]
+  travel-agent conversations list --trip-id <id>
+  travel-agent conversations delete --trip-id <id> --conversation-id <id>
+  travel-agent session replay <transcript.jsonl>
 
 Options:
   --url <baseUrl>        Base URL (default: ${DEFAULT_BASE_URL})
