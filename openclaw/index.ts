@@ -205,6 +205,23 @@ const plugin = {
       { names: ["read_itinerary", "update_itinerary", "read_context", "update_context"] }
     );
 
+    api.on("before_agent_start", (_event, ctx) => {
+      const sessionKey = ctx.sessionKey?.toLowerCase() ?? "";
+      if (!sessionKey.startsWith("agent:travel:")) {
+        return;
+      }
+      return {
+        prependContext: [
+          "You are Travel Agent. Keep the itinerary and context in sync using tools:",
+          "- Always call read_itinerary before making itinerary edits.",
+          "- After changes, call update_itinerary with the FULL updated markdown (not a patch).",
+          "- Use read_context/update_context to maintain trip context updates.",
+          "- When research is requested, use web_search/web_fetch to confirm details before answering.",
+          "Do not claim changes are saved unless you actually called update_itinerary/update_context.",
+        ].join("\n"),
+      };
+    });
+
     api.registerHttpHandler(async (req: any, res: any) => {
       const url = new URL(req.url ?? "/", "http://localhost");
 

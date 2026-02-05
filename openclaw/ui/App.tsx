@@ -398,6 +398,9 @@ const App: React.FC = () => {
           tag: "travel-agent-response",
         });
       }
+      if (activeTripId) {
+        void refreshItinerary();
+      }
       if (finalText.trim() && activeTripId && activeConversationId) {
         void apiFetch<{ ok: true }>(
           `/api/trips/${activeTripId}/conversations/${activeConversationId}/messages`,
@@ -431,7 +434,7 @@ const App: React.FC = () => {
         });
       }
     }
-  }, [activeConversationId, activeTripId, extractChatText, notificationsEnabled]);
+  }, [activeConversationId, activeTripId, extractChatText, notificationsEnabled, refreshItinerary]);
 
   const handleGatewayEvent = useCallback((event: { event: string; payload: any }) => {
     if (event.event === "chat") {
