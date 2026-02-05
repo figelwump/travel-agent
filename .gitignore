@@ -1,4 +1,5 @@
 node_modules/
+openclaw/node_modules
 .DS_Store
 bun.lockb
 
@@ -15,3 +16,7 @@ pnpm-debug.log*
 .playwright-mcp/
 .env
 debug/
+openclaw/workspace/
+openclaw/ui/dist/
+dist/
+**/dist/

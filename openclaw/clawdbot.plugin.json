@@ -1,0 +1,19 @@
+{
+  "id": "travel-agent",
+  "name": "Travel Agent",
+  "description": "Travel tools and UI for OpenClaw",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "workspaceRoot": {
+        "type": "string",
+        "description": "Workspace root for travel agent data"
+      },
+      "uiRoot": {
+        "type": "string",
+        "description": "Directory containing built UI assets"
+      }
+    }
+  }
+}

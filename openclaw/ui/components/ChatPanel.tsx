@@ -1,0 +1,254 @@
+import React, { useEffect, useMemo, useRef } from 'react';
+import { MessageRenderer } from './message/MessageRenderer';
+import type { Message } from './message/types';
+import { buildChatSuggestions } from '../lib/chatSuggestions';
+
+const SendIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+  </svg>
+);
+
+interface ChatPanelProps {
+  isConnected: boolean;
+  isLoading: boolean;
+  inputDisabled: boolean;
+  messages: Message[];
+  draft: string;
+  setDraft: (v: string) => void;
+  textareaHeight?: number | null;
+  onTextareaHeightChange?: (height: number) => void;
+  onSend: (text: string) => void;
+  onCancel: () => void;
+  tripName: string | null;
+  itineraryMarkdown: string;
+  textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
+}
+
+type MessageListProps = {
+  messages: Message[];
+  isLoading: boolean;
+  tripName: string | null;
+  itineraryMarkdown: string;
+  inputDisabled: boolean;
+  onSend: (text: string) => void;
+};
+
+const MessageList = React.memo(function MessageList({
+  messages,
+  isLoading,
+  tripName,
+  itineraryMarkdown,
+  inputDisabled,
+  onSend,
+}: MessageListProps) {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasStreamingAssistant = useMemo(() => (
+    messages.some(msg => msg.type === 'assistant' && msg.metadata?.streaming)
+  ), [messages]);
+  const suggestions = useMemo(
+    () => buildChatSuggestions(tripName, itineraryMarkdown),
+    [tripName, itineraryMarkdown]
+  );
+  const hasItineraryContent = itineraryMarkdown.trim().length > 0;
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length]);
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-4">
+      {messages.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-full text-center py-12 px-6">
+          {/* Travel-themed decorative icon */}
+          <div className="empty-state-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              {tripName ? (
+                // Compass icon for active trip
+                <>
+                  <circle cx="12" cy="12" r="10" />
+                  <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" fill="currentColor" opacity="0.2" />
+                  <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+                </>
+              ) : (
+                // Globe icon for no trip
+                <>
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </>
+              )}
+            </svg>
+          </div>
+
+          <h2 className="header-display text-2xl mb-3" style={{ color: 'hsl(var(--text-primary))' }}>
+            {tripName ? tripName : 'Where to next?'}
+          </h2>
+
+          <p className="text-sm max-w-sm mb-6" style={{ color: 'hsl(var(--text-secondary))', lineHeight: 1.7 }}>
+            {tripName
+              ? (hasItineraryContent
+                ? 'Here are a few smart next steps based on your itinerary, or just start typing what you have in mind.'
+                : 'Here are a few smart ways to get started, or just start typing what you have in mind.')
+              : 'Create a new trip to start planning your next adventure with your personal travel agent.'}
+          </p>
+
+          {tripName && suggestions.length > 0 && (
+            <div className="flex flex-wrap gap-2 justify-center">
+              {suggestions.map((suggestion, i) => (
+                <button
+                  key={suggestion.label}
+                  type="button"
+                  className="suggestion-chip animate-fade-in"
+                  style={{ animationDelay: `${i * 75}ms` }}
+                  onClick={() => onSend(suggestion.prompt)}
+                  disabled={inputDisabled}
+                >
+                  {suggestion.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {messages.map((msg, index) => {
+            const isLast = index === messages.length - 1;
+            const isLastAssistantStillWorking = isLast && msg.type === 'assistant' && isLoading;
+            return (
+              <div key={msg.id} className="animate-slide-up" style={{ animationDelay: `${Math.min(index * 40, 240)}ms` }}>
+                <MessageRenderer message={msg} isLastAndStillWorking={isLastAssistantStillWorking} />
+              </div>
+            );
+          })}
+
+          {isLoading && !hasStreamingAssistant && (
+            <div className="message-card message-assistant p-4 animate-slide-up">
+              <div className="flex items-center gap-3">
+                <span className="mono-label" style={{ color: 'hsl(var(--text-tertiary))' }}>AGENT</span>
+                <div className="flex items-center gap-2">
+                  <span className="loading-dots" aria-label="Loading">
+                    <span className="loading-dot" />
+                    <span className="loading-dot" />
+                    <span className="loading-dot" />
+                  </span>
+                  <span style={{ color: 'hsl(var(--text-secondary))', fontSize: '0.85rem' }}>Thinking</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      <div ref={messagesEndRef} />
+    </div>
+  );
+});
+
+export function ChatPanel({
+  isConnected,
+  isLoading,
+  inputDisabled,
+  messages,
+  draft,
+  setDraft,
+  textareaHeight,
+  onTextareaHeightChange,
+  onSend,
+  onCancel,
+  tripName,
+  itineraryMarkdown,
+  textareaRef: externalTextareaRef,
+}: ChatPanelProps) {
+  const internalTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = externalTextareaRef ?? internalTextareaRef;
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    if (typeof textareaHeight === 'number') {
+      textarea.style.height = `${textareaHeight}px`;
+      return;
+    }
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+  }, [textareaHeight, draft]);
+
+  const handleSubmit = () => {
+    if (isLoading) return;
+    const trimmed = draft.trim();
+    if (!trimmed || inputDisabled) return;
+    setDraft('');
+    onSend(trimmed);
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Messages area */}
+      <MessageList
+        messages={messages}
+        isLoading={isLoading}
+        tripName={tripName}
+        itineraryMarkdown={itineraryMarkdown}
+        inputDisabled={inputDisabled}
+        onSend={onSend}
+      />
+
+      {/* Message input area */}
+      <div className="chat-input-container">
+        <div className="chat-input-wrapper">
+          {/* Text input */}
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={inputDisabled ? 'Select a trip to begin…' : 'Message your travel agent...'}
+            className="chat-textarea"
+            disabled={inputDisabled}
+            rows={1}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (isLoading) return;
+                handleSubmit();
+              }
+            }}
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = 'auto';
+              const nextHeight = Math.min(target.scrollHeight, 150);
+              target.style.height = nextHeight + 'px';
+              onTextareaHeightChange?.(nextHeight);
+            }}
+          />
+
+          {/* Send / Cancel button */}
+          {isLoading ? (
+            <button
+              type="button"
+              className="chat-send-btn"
+              onClick={onCancel}
+              disabled={inputDisabled}
+              title="Cancel response"
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="chat-send-btn"
+              onClick={handleSubmit}
+              disabled={inputDisabled || !draft.trim()}
+              title="Send message"
+            >
+              <SendIcon />
+            </button>
+          )}
+        </div>
+
+        <div className="chat-input-hint">
+          <span>Enter to send • Shift+Enter for newline</span>
+        </div>
+      </div>
+    </div>
+  );
+}
