@@ -104,6 +104,16 @@ function parseTripSession(sessionKey?: string | null): { tripId: string; convers
   return { tripId, conversationId };
 }
 
+function inferTripName(tripId: string): string {
+  const trimmed = tripId.trim();
+  if (!trimmed) return "Untitled trip";
+  const uuidSuffix = /^(.*?)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const base = trimmed.match(uuidSuffix)?.[1] ?? trimmed;
+  const spaced = base.replace(/[_-]+/g, " ").trim();
+  if (!spaced) return "Untitled trip";
+  return spaced.replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
 function resolveTripIdFromParams(params: Record<string, unknown>, sessionKey?: string | null): string | null {
   const explicit = typeof params.tripId === "string" ? params.tripId.trim() : "";
   if (explicit) return explicit;
@@ -195,6 +205,15 @@ function formatHistoryMessage(label: string, content: string): string {
   return `${label}: ${withIndent}`;
 }
 
+function clipForPrompt(value: string, maxChars: number): string {
+  const normalized = value.trim();
+  if (!normalized) return "(empty)";
+  if (normalized.length <= maxChars) return normalized;
+  const clipped = normalized.slice(0, maxChars);
+  const remainder = normalized.length - maxChars;
+  return `${clipped}\n\n[truncated ${remainder} chars]`;
+}
+
 const plugin = {
   id: "travel-agent",
   name: "Travel Agent",
@@ -235,6 +254,11 @@ const plugin = {
       await fs.promises.rename(tmp, bridgePath);
     };
 
+    const ensureTripExists = async (tripId: string) => {
+      const name = inferTripName(tripId);
+      return storage.ensureTripWithId(tripId, name);
+    };
+
     const bindSessionToTrip = async (sessionKey: string | null, tripId: string) => {
       if (!sessionKey) return;
       if (isTripSessionKey(sessionKey)) return;
@@ -243,7 +267,7 @@ const plugin = {
       const existing = state.sessions[sessionKey];
       if (existing && existing.tripId === tripId) return existing;
 
-      const trip = await storage.getTrip(tripId);
+      const trip = await ensureTripExists(tripId);
       const label = sessionAgentLabel(sessionKey);
       const title = `${label} — ${trip?.name ?? tripId}`;
       const conversation = await storage.createConversation(tripId, { title });
@@ -354,6 +378,7 @@ const plugin = {
             if (!tripId) {
               return { content: [{ type: "text", text: "Trip ID is required." }], isError: true };
             }
+            await ensureTripExists(tripId);
             await bindSessionToTrip(sessionKey, tripId);
             const itinerary = await storage.readItinerary(tripId);
             return { content: [{ type: "text", text: itinerary || "(empty itinerary)" }] };
@@ -378,6 +403,7 @@ const plugin = {
             if (!tripId) {
               return { content: [{ type: "text", text: "Trip ID is required." }], isError: true };
             }
+            await ensureTripExists(tripId);
             await bindSessionToTrip(sessionKey, tripId);
             await storage.writeItinerary(tripId, content);
             return { content: [{ type: "text", text: `Updated itinerary for ${tripId}.` }] };
@@ -399,6 +425,7 @@ const plugin = {
             if (!tripId) {
               return { content: [{ type: "text", text: "Trip ID is required." }], isError: true };
             }
+            await ensureTripExists(tripId);
             await bindSessionToTrip(sessionKey, tripId);
             const context = await storage.readContext(tripId);
             return { content: [{ type: "text", text: context || "(empty context)" }] };
@@ -423,6 +450,7 @@ const plugin = {
             if (!tripId) {
               return { content: [{ type: "text", text: "Trip ID is required." }], isError: true };
             }
+            await ensureTripExists(tripId);
             await bindSessionToTrip(sessionKey, tripId);
             await storage.writeContext(tripId, content);
             return { content: [{ type: "text", text: `Updated context for ${tripId}.` }] };
@@ -434,7 +462,7 @@ const plugin = {
       { names: ["read_itinerary", "update_itinerary", "read_context", "update_context"] }
     );
 
-    api.on("before_agent_start", (_event, ctx) => {
+    api.on("before_agent_start", (_event: unknown, ctx: { sessionKey?: string | null }) => {
       const rawSessionKey = ctx.sessionKey ?? "";
       const sessionKey = rawSessionKey.toLowerCase();
       if (!sessionKey.startsWith("agent:travel:")) {
@@ -442,10 +470,13 @@ const plugin = {
       }
       const baseContext = [
         "You are Travel Agent. Keep the itinerary and context in sync using tools:",
+        "- The active Trip ID is always derived from the session key. Do not ask the user which trip they mean.",
         "- Always call read_itinerary before making itinerary edits.",
         "- After changes, call update_itinerary with the FULL updated markdown (not a patch).",
         "- Use read_context/update_context to maintain trip context updates.",
         "- When research is requested, use web_search/web_fetch to confirm details before answering.",
+        "- For reminders/follow-ups, schedule with the cron tool (OpenClaw scheduler), not plain text promises.",
+        "- If reminder timing is missing, ask only for time details (do not ask which trip).",
         "Do not claim changes are saved unless you actually called update_itinerary/update_context.",
       ].join("\n");
 
@@ -453,6 +484,37 @@ const plugin = {
       if (!tripSession) {
         return { prependContext: baseContext };
       }
+
+      const tripStatePromise = (async () => {
+        try {
+          const [itinerary, context] = await Promise.all([
+            storage.readItinerary(tripSession.tripId),
+            storage.readContext(tripSession.tripId),
+          ]);
+          const itineraryBlock = clipForPrompt(itinerary, 12000);
+          const contextBlock = clipForPrompt(context, 6000);
+          return [
+            "",
+            "Active trip scope:",
+            `- Trip ID: ${tripSession.tripId}`,
+            `- Conversation ID: ${tripSession.conversationId}`,
+            "",
+            "Preloaded itinerary snapshot:",
+            itineraryBlock,
+            "",
+            "Preloaded trip context snapshot:",
+            contextBlock,
+          ].join("\n");
+        } catch (err) {
+          api.logger.warn(`travel-agent: failed to preload trip state for ${tripSession.tripId}: ${String(err)}`);
+          return [
+            "",
+            "Active trip scope:",
+            `- Trip ID: ${tripSession.tripId}`,
+            `- Conversation ID: ${tripSession.conversationId}`,
+          ].join("\n");
+        }
+      })();
 
       const historyPromise = (async () => {
         try {
@@ -472,12 +534,12 @@ const plugin = {
         }
       })();
 
-      return historyPromise.then((historyBlock) => ({
-        prependContext: baseContext + historyBlock,
+      return Promise.all([tripStatePromise, historyPromise]).then(([tripStateBlock, historyBlock]) => ({
+        prependContext: baseContext + tripStateBlock + historyBlock,
       }));
     });
 
-    api.on("agent_end", (event, ctx) => {
+    api.on("agent_end", (event: { messages?: unknown[] }, ctx: { sessionKey?: string | null }) => {
       const sessionKey = ctx.sessionKey ?? null;
       if (!sessionKey) return;
       void appendMirroredMessages(sessionKey, event.messages ?? []);

@@ -97,21 +97,30 @@ export function createStorage(root: string) {
   async function createTrip(name: string): Promise<Trip> {
     await ensureDataDirs();
     const id = crypto.randomUUID();
-    const dir = tripDir(id);
-    await fs.mkdir(dir, { recursive: true });
-    await fs.mkdir(conversationsRoot(id), { recursive: true });
-
     const t = nowIso();
     const tripName = name.trim() || "Untitled trip";
-    const trip: Trip = { id, name: tripName, createdAt: t, updatedAt: t };
-    await writeFileAtomic(tripMetaPath(id), JSON.stringify(trip, null, 2));
-    await ensureItinerary(id, tripName);
-    await ensureContext(id);
-    return trip;
+    return ensureTripWithId(id, tripName, t);
   }
 
   async function getTrip(tripId: string): Promise<Trip | null> {
     return readJsonFile<Trip>(tripMetaPath(tripId));
+  }
+
+  async function ensureTripWithId(tripId: string, name?: string | null, nowOverride?: string): Promise<Trip> {
+    await ensureDataDirs();
+    const existing = await getTrip(tripId);
+    if (existing) return existing;
+    const dir = tripDir(tripId);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.mkdir(conversationsRoot(tripId), { recursive: true });
+
+    const t = nowOverride ?? nowIso();
+    const tripName = name?.trim() || "Untitled trip";
+    const trip: Trip = { id: tripId, name: tripName, createdAt: t, updatedAt: t };
+    await writeFileAtomic(tripMetaPath(tripId), JSON.stringify(trip, null, 2));
+    await ensureItinerary(tripId, tripName);
+    await ensureContext(tripId);
+    return trip;
   }
 
   async function updateTrip(tripId: string, patch: Partial<Trip>): Promise<Trip | null> {
@@ -368,6 +377,7 @@ export function createStorage(root: string) {
   return {
     listTrips,
     createTrip,
+    ensureTripWithId,
     getTrip,
     updateTrip,
     deleteTrip,
