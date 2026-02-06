@@ -2,6 +2,7 @@
   "id": "travel-agent",
   "name": "Travel Agent",
   "description": "Travel tools and UI for OpenClaw",
+  "skills": ["./skills"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
