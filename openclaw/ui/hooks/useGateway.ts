@@ -99,7 +99,7 @@ export function useGateway({
       },
       role: "operator",
       scopes: ["operator.read", "operator.write"],
-      caps: [],
+      caps: ["tool-events"],
       auth,
       locale: navigator.language ?? "en-US",
       userAgent: navigator.userAgent,
