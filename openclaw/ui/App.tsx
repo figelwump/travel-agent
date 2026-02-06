@@ -562,6 +562,26 @@ const App: React.FC = () => {
     }
 
     runIdToToolActivityRef.current[runId] = next;
+    const messageId = runIdToMessageIdRef.current[runId] ?? runId;
+    runIdToMessageIdRef.current[runId] = messageId;
+    setMessages((prev) => {
+      const idx = prev.findIndex((msg) => msg.id === messageId && msg.type === "assistant");
+      if (idx >= 0) {
+        return prev;
+      }
+      const timestamp = new Date().toISOString();
+      const placeholder: Message = {
+        id: messageId,
+        type: "assistant",
+        content: [createTextBlock("")],
+        timestamp,
+        metadata: {
+          streaming: true,
+          toolActivity: next,
+        },
+      };
+      return [...prev, placeholder];
+    });
     applyToolActivityToMessage(runId, next);
   }, [applyToolActivityToMessage]);
 
