@@ -1,7 +1,7 @@
 {
   "id": "travel-agent",
   "name": "Travel Agent",
-  "description": "Travel tools and UI for OpenClaw",
+  "description": "Travel tools, EmptyOS home screen, and UI for OpenClaw",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -13,6 +13,10 @@
       "uiRoot": {
         "type": "string",
         "description": "Directory containing built UI assets"
+      },
+      "emptyosHome": {
+        "type": "string",
+        "description": "EmptyOS home directory (defaults to ~/.emptyos)"
       }
     }
   }

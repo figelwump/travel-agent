@@ -2,8 +2,12 @@ import type { ClawdbotPluginApi } from "clawdbot/plugin-sdk";
 import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { createStorage, defaultSessionKey, type Conversation, type StoredMessage } from "./storage";
+import { createArtifactRegistry } from "./artifacts";
+import { createTravelArtifactProvider } from "./providers/travel-artifacts";
+import { createEmptyOSArtifactProvider } from "./providers/emptyos-artifacts";
 
 const BASE_PATH = "/agents/travel";
 const API_PREFIX = `${BASE_PATH}/api`;
@@ -11,11 +15,13 @@ const API_PREFIX = `${BASE_PATH}/api`;
 type TravelPluginConfig = {
   workspaceRoot?: string;
   uiRoot?: string;
+  emptyosHome?: string;
 };
 
 type ResolvedConfig = {
   workspaceRoot: string;
   uiRoot: string;
+  emptyosHome: string;
 };
 
 function resolveConfig(api: ClawdbotPluginApi, pluginRoot: string): ResolvedConfig {
@@ -26,7 +32,10 @@ function resolveConfig(api: ClawdbotPluginApi, pluginRoot: string): ResolvedConf
   const uiRoot = cfg.uiRoot
     ? api.resolvePath(cfg.uiRoot)
     : path.join(pluginRoot, "ui");
-  return { workspaceRoot, uiRoot };
+  const emptyosHome = cfg.emptyosHome
+    ? api.resolvePath(cfg.emptyosHome)
+    : path.join(os.homedir(), ".emptyos");
+  return { workspaceRoot, uiRoot, emptyosHome };
 }
 
 function getContentType(filePath: string) {
@@ -357,6 +366,10 @@ const plugin = {
       }
     };
 
+    const artifactRegistry = createArtifactRegistry();
+    artifactRegistry.register(createTravelArtifactProvider(storage));
+    artifactRegistry.register(createEmptyOSArtifactProvider(config.emptyosHome));
+
     api.logger.info(`travel-agent plugin loaded (workspace: ${config.workspaceRoot})`);
 
     api.registerTool(
@@ -545,46 +558,158 @@ const plugin = {
       void appendMirroredMessages(sessionKey, event.messages ?? []);
     });
 
-    api.registerHttpHandler(async (req: any, res: any) => {
-      const url = new URL(req.url ?? "/", "http://localhost");
-
-      if (!url.pathname.startsWith(BASE_PATH)) {
-        return false;
+    // --- Shared trip API handler (used by both /agents/travel/api and /emptyos/api/trips) ---
+    async function handleTripApiRequest(segments: string[], req: any, res: any, url: URL): Promise<boolean> {
+      if (segments.length === 1 && segments[0] === "trips") {
+        if (req.method === "GET") {
+          const trips = await storage.listTrips();
+          sendJson(res, 200, trips);
+          return true;
+        }
+        if (req.method === "POST") {
+          const body = (await readJsonBody(req)) ?? {};
+          const name = typeof body.name === "string" ? body.name : "";
+          const trip = await storage.createTrip(name);
+          sendJson(res, 201, trip);
+          return true;
+        }
       }
 
-      if (url.pathname.startsWith(API_PREFIX)) {
-        const apiPath = url.pathname.slice(API_PREFIX.length);
-        const segments = apiPath.split("/").filter(Boolean);
-
-        if (segments.length === 1 && segments[0] === "trips") {
+      if (segments.length >= 2 && segments[0] === "trips") {
+        const tripId = segments[1];
+        if (segments.length === 2) {
           if (req.method === "GET") {
-            const trips = await storage.listTrips();
-            sendJson(res, 200, trips);
+            const trip = await storage.getTrip(tripId);
+            if (!trip) {
+              sendText(res, 404, "Not found");
+              return true;
+            }
+            sendJson(res, 200, trip);
             return true;
           }
-          if (req.method === "POST") {
-            const body = (await readJsonBody(req)) ?? {};
-            const name = typeof body.name === "string" ? body.name : "";
-            const trip = await storage.createTrip(name);
-            sendJson(res, 201, trip);
+          if (req.method === "DELETE") {
+            const deleted = await storage.deleteTrip(tripId);
+            if (!deleted) {
+              sendText(res, 404, "Not found");
+              return true;
+            }
+            sendJson(res, 200, { ok: true });
             return true;
           }
         }
 
-        if (segments.length >= 2 && segments[0] === "trips") {
-          const tripId = segments[1];
-          if (segments.length === 2) {
+        if (segments[2] === "itinerary" && segments.length === 3) {
+          if (req.method === "GET") {
+            const itinerary = await storage.readItinerary(tripId);
+            sendText(res, 200, itinerary, "text/markdown; charset=utf-8");
+            return true;
+          }
+          if (req.method === "PUT") {
+            const body = (await readJsonBody(req)) ?? {};
+            const content = typeof body.content === "string" ? body.content : "";
+            await storage.writeItinerary(tripId, content);
+            sendJson(res, 200, { ok: true });
+            return true;
+          }
+        }
+
+        if (segments[2] === "itinerary" && segments[3] === "toggle-todo" && segments.length === 4) {
+          if (req.method === "POST") {
+            const body = (await readJsonBody(req)) ?? {};
+            const line = Number(body.line);
+            if (!Number.isFinite(line) || line < 1) {
+              sendText(res, 400, "Invalid line");
+              return true;
+            }
+            const result = await storage.toggleTodoAtLine(tripId, line);
+            sendJson(res, 200, result);
+            return true;
+          }
+        }
+
+        if (segments[2] === "context" && segments.length === 3) {
+          if (req.method === "GET") {
+            const context = await storage.readContext(tripId);
+            sendText(res, 200, context, "text/markdown; charset=utf-8");
+            return true;
+          }
+          if (req.method === "PUT") {
+            const body = (await readJsonBody(req)) ?? {};
+            const content = typeof body.content === "string" ? body.content : "";
+            await storage.writeContext(tripId, content);
+            sendJson(res, 200, { ok: true });
+            return true;
+          }
+        }
+
+        if (segments[2] === "conversations" && segments.length === 3) {
+          if (req.method === "GET") {
+            const conversations = await storage.listConversations(tripId);
+            const withSessionKeys = conversations.map((conv) => ({
+              ...conv,
+              sessionKey: conv.sessionKey ?? defaultSessionKey(tripId, conv.id),
+            }));
+            sendJson(res, 200, withSessionKeys);
+            return true;
+          }
+          if (req.method === "POST") {
+            const body = (await readJsonBody(req)) ?? {};
+            const title = typeof body.title === "string" ? body.title : undefined;
+            const initialAssistantMessage =
+              typeof body.initialAssistantMessage === "string" ? body.initialAssistantMessage : undefined;
+            const conversation = await storage.createConversation(tripId, {
+              title,
+              initialAssistantMessage,
+            });
+            const result: Conversation = {
+              ...conversation,
+              sessionKey: conversation.sessionKey ?? defaultSessionKey(tripId, conversation.id),
+            };
+            sendJson(res, 201, result);
+            return true;
+          }
+        }
+
+        if (segments[2] === "conversations" && segments[3]) {
+          const conversationId = segments[3];
+          if (segments.length === 4) {
             if (req.method === "GET") {
-              const trip = await storage.getTrip(tripId);
-              if (!trip) {
+              const conversation = await storage.getConversation(tripId, conversationId);
+              if (!conversation) {
                 sendText(res, 404, "Not found");
                 return true;
               }
-              sendJson(res, 200, trip);
+              const result: Conversation = {
+                ...conversation,
+                sessionKey: conversation.sessionKey ?? defaultSessionKey(tripId, conversationId),
+              };
+              sendJson(res, 200, result);
+              return true;
+            }
+            if (req.method === "PATCH") {
+              const body = (await readJsonBody(req)) ?? {};
+              const title = typeof body.title === "string" ? body.title : undefined;
+              if (title) {
+                await storage.updateConversation(tripId, conversationId, {
+                  title,
+                  titleSource: "user",
+                  titleUpdatedAt: new Date().toISOString(),
+                });
+              }
+              const updated = await storage.getConversation(tripId, conversationId);
+              if (!updated) {
+                sendText(res, 404, "Not found");
+                return true;
+              }
+              const result: Conversation = {
+                ...updated,
+                sessionKey: updated.sessionKey ?? defaultSessionKey(tripId, conversationId),
+              };
+              sendJson(res, 200, result);
               return true;
             }
             if (req.method === "DELETE") {
-              const deleted = await storage.deleteTrip(tripId);
+              const deleted = await storage.deleteConversation(tripId, conversationId);
               if (!deleted) {
                 sendText(res, 404, "Not found");
                 return true;
@@ -594,174 +719,50 @@ const plugin = {
             }
           }
 
-          if (segments[2] === "itinerary" && segments.length === 3) {
+          if (segments.length >= 5 && segments[4] === "messages") {
             if (req.method === "GET") {
-              const itinerary = await storage.readItinerary(tripId);
-              sendText(res, 200, itinerary, "text/markdown; charset=utf-8");
+              const limitParam = url.searchParams.get("limit");
+              const limit = limitParam ? Number(limitParam) : 500;
+              const messages = await storage.readMessages(tripId, conversationId, Number.isFinite(limit) ? limit : 500);
+              sendJson(res, 200, messages);
               return true;
             }
-            if (req.method === "PUT") {
-              const body = (await readJsonBody(req)) ?? {};
-              const content = typeof body.content === "string" ? body.content : "";
-              await storage.writeItinerary(tripId, content);
-              sendJson(res, 200, { ok: true });
-              return true;
-            }
-          }
-
-          if (segments[2] === "itinerary" && segments[3] === "toggle-todo" && segments.length === 4) {
             if (req.method === "POST") {
               const body = (await readJsonBody(req)) ?? {};
-              const line = Number(body.line);
-              if (!Number.isFinite(line) || line < 1) {
-                sendText(res, 400, "Invalid line");
+              const type = typeof body.type === "string" ? body.type : "";
+              const content = typeof body.content === "string" ? body.content : "";
+              if (!type || !content) {
+                sendText(res, 400, "Invalid message payload");
                 return true;
               }
-              const result = await storage.toggleTodoAtLine(tripId, line);
-              sendJson(res, 200, result);
-              return true;
-            }
-          }
-
-          if (segments[2] === "context" && segments.length === 3) {
-            if (req.method === "GET") {
-              const context = await storage.readContext(tripId);
-              sendText(res, 200, context, "text/markdown; charset=utf-8");
-              return true;
-            }
-            if (req.method === "PUT") {
-              const body = (await readJsonBody(req)) ?? {};
-              const content = typeof body.content === "string" ? body.content : "";
-              await storage.writeContext(tripId, content);
-              sendJson(res, 200, { ok: true });
-              return true;
-            }
-          }
-
-          if (segments[2] === "conversations" && segments.length === 3) {
-            if (req.method === "GET") {
-              const conversations = await storage.listConversations(tripId);
-              const withSessionKeys = conversations.map((conv) => ({
-                ...conv,
-                sessionKey: conv.sessionKey ?? defaultSessionKey(tripId, conv.id),
-              }));
-              sendJson(res, 200, withSessionKeys);
-              return true;
-            }
-            if (req.method === "POST") {
-              const body = (await readJsonBody(req)) ?? {};
-              const title = typeof body.title === "string" ? body.title : undefined;
-              const initialAssistantMessage =
-                typeof body.initialAssistantMessage === "string" ? body.initialAssistantMessage : undefined;
-              const conversation = await storage.createConversation(tripId, {
-                title,
-                initialAssistantMessage,
-              });
-              const result: Conversation = {
-                ...conversation,
-                sessionKey: conversation.sessionKey ?? defaultSessionKey(tripId, conversation.id),
+              const message: StoredMessage = {
+                id: typeof body.id === "string" ? body.id : crypto.randomUUID(),
+                type: type === "assistant" || type === "system" ? type : "user",
+                content,
+                timestamp: typeof body.timestamp === "string" ? body.timestamp : new Date().toISOString(),
+                metadata: typeof body.metadata === "object" && body.metadata ? body.metadata : undefined,
               };
-              sendJson(res, 201, result);
+              await storage.appendMessage(tripId, conversationId, message);
+              sendJson(res, 201, { ok: true });
               return true;
-            }
-          }
-
-          if (segments[2] === "conversations" && segments[3]) {
-            const conversationId = segments[3];
-            if (segments.length === 4) {
-              if (req.method === "GET") {
-                const conversation = await storage.getConversation(tripId, conversationId);
-                if (!conversation) {
-                  sendText(res, 404, "Not found");
-                  return true;
-                }
-                const result: Conversation = {
-                  ...conversation,
-                  sessionKey: conversation.sessionKey ?? defaultSessionKey(tripId, conversationId),
-                };
-                sendJson(res, 200, result);
-                return true;
-              }
-              if (req.method === "PATCH") {
-                const body = (await readJsonBody(req)) ?? {};
-                const title = typeof body.title === "string" ? body.title : undefined;
-                if (title) {
-                  await storage.updateConversation(tripId, conversationId, {
-                    title,
-                    titleSource: "user",
-                    titleUpdatedAt: new Date().toISOString(),
-                  });
-                }
-                const updated = await storage.getConversation(tripId, conversationId);
-                if (!updated) {
-                  sendText(res, 404, "Not found");
-                  return true;
-                }
-                const result: Conversation = {
-                  ...updated,
-                  sessionKey: updated.sessionKey ?? defaultSessionKey(tripId, conversationId),
-                };
-                sendJson(res, 200, result);
-                return true;
-              }
-              if (req.method === "DELETE") {
-                const deleted = await storage.deleteConversation(tripId, conversationId);
-                if (!deleted) {
-                  sendText(res, 404, "Not found");
-                  return true;
-                }
-                sendJson(res, 200, { ok: true });
-                return true;
-              }
-            }
-
-            if (segments.length >= 5 && segments[4] === "messages") {
-              if (req.method === "GET") {
-                const limitParam = url.searchParams.get("limit");
-                const limit = limitParam ? Number(limitParam) : 500;
-                const messages = await storage.readMessages(tripId, conversationId, Number.isFinite(limit) ? limit : 500);
-                sendJson(res, 200, messages);
-                return true;
-              }
-              if (req.method === "POST") {
-                const body = (await readJsonBody(req)) ?? {};
-                const type = typeof body.type === "string" ? body.type : "";
-                const content = typeof body.content === "string" ? body.content : "";
-                if (!type || !content) {
-                  sendText(res, 400, "Invalid message payload");
-                  return true;
-                }
-                const message: StoredMessage = {
-                  id: typeof body.id === "string" ? body.id : crypto.randomUUID(),
-                  type: type === "assistant" || type === "system" ? type : "user",
-                  content,
-                  timestamp: typeof body.timestamp === "string" ? body.timestamp : new Date().toISOString(),
-                  metadata: typeof body.metadata === "object" && body.metadata ? body.metadata : undefined,
-                };
-                await storage.appendMessage(tripId, conversationId, message);
-                sendJson(res, 201, { ok: true });
-                return true;
-              }
             }
           }
         }
-
-        sendText(res, 404, "Not found");
-        return true;
       }
 
+      return false;
+    }
+
+    // --- SPA serving helper ---
+    function serveUiAssets(url: URL, res: any, basePath: string): boolean {
       const uiRoot = config.uiRoot;
       const distRoot = path.join(uiRoot, "dist");
       const cssPath = path.join(distRoot, "globals.css");
       const jsPath = path.join(distRoot, "index.js");
 
-      if (url.pathname === `${BASE_PATH}/globals.css`) {
+      if (url.pathname === `${basePath}/globals.css`) {
         if (!fs.existsSync(cssPath)) {
-          sendText(
-            res,
-            500,
-            'UI assets missing. Run "npx tsx openclaw/scripts/build-ui.ts" in the travel-agent repo.'
-          );
+          sendText(res, 500, 'UI assets missing. Run "npx tsx openclaw/scripts/build-ui.ts" in the travel-agent repo.');
           return true;
         }
         res.writeHead(200, { "content-type": "text/css; charset=utf-8" });
@@ -769,13 +770,9 @@ const plugin = {
         return true;
       }
 
-      if (url.pathname === `${BASE_PATH}/index.js`) {
+      if (url.pathname === `${basePath}/index.js`) {
         if (!fs.existsSync(jsPath)) {
-          sendText(
-            res,
-            500,
-            'UI assets missing. Run "npx tsx openclaw/scripts/build-ui.ts" in the travel-agent repo.'
-          );
+          sendText(res, 500, 'UI assets missing. Run "npx tsx openclaw/scripts/build-ui.ts" in the travel-agent repo.');
           return true;
         }
         res.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
@@ -783,7 +780,7 @@ const plugin = {
         return true;
       }
 
-      let relativePath = url.pathname.slice(BASE_PATH.length);
+      let relativePath = url.pathname.slice(basePath.length);
       if (relativePath === "" || relativePath === "/") {
         relativePath = "/index.html";
       }
@@ -809,6 +806,85 @@ const plugin = {
 
       sendText(res, 404, "Not found");
       return true;
+    }
+
+    api.registerHttpHandler(async (req: any, res: any) => {
+      const url = new URL(req.url ?? "/", "http://localhost");
+
+      if (!url.pathname.startsWith(BASE_PATH)) {
+        return false;
+      }
+
+      if (url.pathname.startsWith(API_PREFIX)) {
+        const apiPath = url.pathname.slice(API_PREFIX.length);
+        const segments = apiPath.split("/").filter(Boolean);
+
+        // GET /agents/travel/api/agents
+        if (segments.length === 1 && segments[0] === "agents" && req.method === "GET") {
+          sendJson(res, 200, [
+            {
+              id: "travel",
+              name: "Travel Agent",
+              description: "Plan trips, build itineraries, and research destinations.",
+              color: "linear-gradient(135deg, hsl(16 75% 52%) 0%, hsl(12 70% 45%) 100%)",
+            },
+          ]);
+          return true;
+        }
+
+        // /agents/travel/api/artifacts[/...]
+        if (segments[0] === "artifacts") {
+          if (segments.length === 1 && req.method === "GET") {
+            const source = url.searchParams.get("source") ?? undefined;
+            const kind = url.searchParams.get("kind") ?? undefined;
+            const artifacts = await artifactRegistry.list({ source, kind });
+            sendJson(res, 200, artifacts);
+            return true;
+          }
+
+          if (segments.length >= 2 && req.method === "GET") {
+            const isContentRequest = segments[segments.length - 1] === "content";
+            const idSegments = isContentRequest ? segments.slice(1, -1) : segments.slice(1);
+            const artifactId = idSegments.join(":");
+
+            if (isContentRequest) {
+              const content = await artifactRegistry.getContent(artifactId);
+              if (!content) {
+                sendText(res, 404, "Not found");
+                return true;
+              }
+              const data = content.data;
+              if (typeof data === "string") {
+                sendText(res, 200, data, content.mimeType);
+              } else {
+                res.writeHead(200, { "content-type": content.mimeType });
+                res.end(data);
+              }
+              return true;
+            } else {
+              const artifact = await artifactRegistry.get(artifactId);
+              if (!artifact) {
+                sendText(res, 404, "Not found");
+                return true;
+              }
+              sendJson(res, 200, artifact);
+              return true;
+            }
+          }
+        }
+
+        // /agents/travel/api/trips/*
+        if (segments[0] === "trips") {
+          const handled = await handleTripApiRequest(segments, req, res, url);
+          if (handled) return true;
+        }
+
+        sendText(res, 404, "Not found");
+        return true;
+      }
+
+      // SPA — serve UI assets
+      return serveUiAssets(url, res, BASE_PATH);
     });
   },
 };
