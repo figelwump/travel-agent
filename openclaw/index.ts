@@ -93,6 +93,17 @@ function parseTripIdFromSessionKey(sessionKey?: string | null): string | null {
   return tripId || null;
 }
 
+function parseTripSession(sessionKey?: string | null): { tripId: string; conversationId: string } | null {
+  if (!sessionKey) return null;
+  if (!isTripSessionKey(sessionKey)) return null;
+  const parts = sessionKey.split(":");
+  if (parts.length < 4) return null;
+  const tripId = parts[2];
+  const conversationId = parts[3];
+  if (!tripId || !conversationId) return null;
+  return { tripId, conversationId };
+}
+
 function resolveTripIdFromParams(params: Record<string, unknown>, sessionKey?: string | null): string | null {
   const explicit = typeof params.tripId === "string" ? params.tripId.trim() : "";
   if (explicit) return explicit;
@@ -175,6 +186,13 @@ function cleanMirroredUserMessage(raw: string): string {
 
 function hashText(input: string): string {
   return crypto.createHash("sha1").update(input).digest("hex");
+}
+
+function formatHistoryMessage(label: string, content: string): string {
+  const trimmed = content.trim();
+  if (!trimmed) return "";
+  const withIndent = trimmed.replace(/\n/g, "\n  ");
+  return `${label}: ${withIndent}`;
 }
 
 const plugin = {
@@ -417,20 +435,46 @@ const plugin = {
     );
 
     api.on("before_agent_start", (_event, ctx) => {
-      const sessionKey = ctx.sessionKey?.toLowerCase() ?? "";
+      const rawSessionKey = ctx.sessionKey ?? "";
+      const sessionKey = rawSessionKey.toLowerCase();
       if (!sessionKey.startsWith("agent:travel:")) {
         return;
       }
-      return {
-        prependContext: [
-          "You are Travel Agent. Keep the itinerary and context in sync using tools:",
-          "- Always call read_itinerary before making itinerary edits.",
-          "- After changes, call update_itinerary with the FULL updated markdown (not a patch).",
-          "- Use read_context/update_context to maintain trip context updates.",
-          "- When research is requested, use web_search/web_fetch to confirm details before answering.",
-          "Do not claim changes are saved unless you actually called update_itinerary/update_context.",
-        ].join("\n"),
-      };
+      const baseContext = [
+        "You are Travel Agent. Keep the itinerary and context in sync using tools:",
+        "- Always call read_itinerary before making itinerary edits.",
+        "- After changes, call update_itinerary with the FULL updated markdown (not a patch).",
+        "- Use read_context/update_context to maintain trip context updates.",
+        "- When research is requested, use web_search/web_fetch to confirm details before answering.",
+        "Do not claim changes are saved unless you actually called update_itinerary/update_context.",
+      ].join("\n");
+
+      const tripSession = parseTripSession(rawSessionKey);
+      if (!tripSession) {
+        return { prependContext: baseContext };
+      }
+
+      const historyPromise = (async () => {
+        try {
+          const history = await storage.readMessages(tripSession.tripId, tripSession.conversationId, 30);
+          if (!history.length) return "";
+          const lines = history
+            .map((msg) => {
+              const label = msg.type === "user" ? "User" : msg.type === "assistant" ? "Assistant" : "System";
+              return formatHistoryMessage(label, msg.content);
+            })
+            .filter(Boolean);
+          if (!lines.length) return "";
+          return ["", "Recent conversation history (most recent last):", ...lines].join("\n");
+        } catch (err) {
+          api.logger.warn(`travel-agent: failed to load chat history for ${tripSession.tripId}`);
+          return "";
+        }
+      })();
+
+      return historyPromise.then((historyBlock) => ({
+        prependContext: baseContext + historyBlock,
+      }));
     });
 
     api.on("agent_end", (event, ctx) => {
