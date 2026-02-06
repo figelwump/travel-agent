@@ -35,7 +35,8 @@ function ToolUseComponent({ toolUse, expanded }: { toolUse: ToolUseBlock; expand
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = expanded ?? internalExpanded;
   const canToggle = expanded === undefined;
-  const toolName = toolUse.name === 'Skill' && toolUse.input?.skill
+  const isSkillTool = toolUse.name?.toLowerCase?.() === 'skill';
+  const toolName = isSkillTool && toolUse.input?.skill
     ? `Skill: ${toolUse.input.skill}`
     : cleanToolName(toolUse.name);
 
@@ -538,8 +539,15 @@ export function AssistantMessage({ message, isLastAndStillWorking }: AssistantMe
     : [];
   const runningToolCount = toolActivity.filter(tool => tool.status === 'running').length;
 
+  const normalizeToolKey = (value: string) => {
+    if (!value) return '';
+    const base = value.toLowerCase();
+    const stripped = base.startsWith('mcp__') ? base.split('__').slice(2).join('__') : base;
+    return stripped.replace(/\s+/g, '_');
+  };
+
   const formatToolLabel = (tool: ToolActivity) => {
-    if (tool.name === 'Skill' && tool.input?.skill) {
+    if (tool.name?.toLowerCase?.() === 'skill' && tool.input?.skill) {
       return `Skill: ${tool.input.skill}`;
     }
     return cleanToolName(tool.name) || 'Tool';
@@ -550,29 +558,31 @@ export function AssistantMessage({ message, isLastAndStillWorking }: AssistantMe
     const truncate = (value: string, max = 72) => (
       value.length > max ? `${value.slice(0, max - 3)}...` : value
     );
-    const name = cleanToolName(tool.name);
+    const key = normalizeToolKey(tool.name);
 
-    switch (name) {
-      case 'Skill':
+    switch (key) {
+      case 'skill':
         return input.skill ? `Run ${truncate(String(input.skill), 40)}` : 'Skill workflow';
-      case 'Read':
-      case 'Write':
-      case 'Edit':
-      case 'MultiEdit':
-      case 'NotebookEdit':
+      case 'read':
+      case 'write':
+      case 'edit':
+      case 'multiedit':
+      case 'notebookedit':
         return input.file_path ? truncate(String(input.file_path)) : 'File operation';
-      case 'Bash':
+      case 'bash':
         return input.command ? truncate(`$ ${String(input.command)}`) : 'Shell command';
-      case 'WebFetch':
+      case 'web_fetch':
+      case 'webfetch':
         return input.url ? truncate(String(input.url)) : 'Fetch URL';
-      case 'WebSearch':
+      case 'web_search':
+      case 'websearch':
         return input.query ? truncate(String(input.query)) : 'Search query';
-      case 'Glob':
-      case 'Grep':
+      case 'glob':
+      case 'grep':
         return input.pattern ? truncate(String(input.pattern)) : 'Pattern match';
-      case 'Task':
+      case 'task':
         return input.subagent_type ? `Agent: ${input.subagent_type}` : 'Sub-agent task';
-      case 'TodoWrite':
+      case 'todowrite':
         return input.todos ? `${input.todos.length} todos` : 'Todo update';
       // Trip tools
       case 'read_itinerary':
@@ -587,7 +597,7 @@ export function AssistantMessage({ message, isLastAndStillWorking }: AssistantMe
       case 'toggle_todo':
         return input.lineNumber ? `Line ${input.lineNumber}` : 'Toggle checkbox';
       default:
-        return 'Working...';
+        return tool.status === 'complete' ? 'Done' : 'Working...';
     }
   };
 
