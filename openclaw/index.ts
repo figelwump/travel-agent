@@ -99,6 +99,84 @@ function resolveTripIdFromParams(params: Record<string, unknown>, sessionKey?: s
   return parseTripIdFromSessionKey(sessionKey);
 }
 
+type BridgeEntry = {
+  tripId: string;
+  conversationId: string;
+  lastUserDigest?: string;
+  lastAssistantDigest?: string;
+  updatedAt: string;
+};
+
+type BridgeState = {
+  sessions: Record<string, BridgeEntry>;
+};
+
+function isTripSessionKey(sessionKey?: string | null): boolean {
+  if (!sessionKey) return false;
+  const parts = sessionKey.split(":");
+  if (parts.length < 4) return false;
+  if (parts[0] !== "agent" || parts[1] !== "travel") return false;
+  const segment = parts[2];
+  if (!segment || segment === "subagent" || segment === "hook" || segment === "cron") return false;
+  return true;
+}
+
+function sessionAgentLabel(sessionKey?: string | null): string {
+  if (!sessionKey) return "Agent";
+  const parts = sessionKey.split(":");
+  if (parts.length >= 2 && parts[0] === "agent") {
+    const agentId = parts[1] || "agent";
+    if (agentId === "main") return "Main Agent";
+    if (agentId === "travel") return "Travel Subagent";
+    return `${agentId.charAt(0).toUpperCase()}${agentId.slice(1)} Agent`;
+  }
+  return "Agent";
+}
+
+function extractTextFromContent(content: any): string {
+  if (!content) return "";
+  if (typeof content === "string") return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => (part && typeof part.text === "string" ? part.text : ""))
+      .join("")
+      .trim();
+  }
+  if (typeof content.text === "string") return content.text.trim();
+  return "";
+}
+
+function cleanMirroredUserMessage(raw: string): string {
+  if (!raw) return raw;
+  if (!raw.includes("You are Travel Agent") && !raw.includes("[message_id")) {
+    return raw.trim();
+  }
+  const lines = raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    const match = line.match(/^\[[^\]]+\]\s*(.+)$/);
+    if (match?.[1]) {
+      return match[1].trim();
+    }
+  }
+  const filtered = lines.filter((line) => {
+    if (line.startsWith("[")) return false;
+    const lower = line.toLowerCase();
+    if (lower.startsWith("you are travel agent")) return false;
+    if (lower.startsWith("do not claim")) return false;
+    if (line.startsWith("- ")) return false;
+    return true;
+  });
+  return filtered.join("\n").trim() || raw.trim();
+}
+
+function hashText(input: string): string {
+  return crypto.createHash("sha1").update(input).digest("hex");
+}
+
 const plugin = {
   id: "travel-agent",
   name: "Travel Agent",
@@ -107,6 +185,135 @@ const plugin = {
     const pluginRoot = path.dirname(fileURLToPath(import.meta.url));
     const config = resolveConfig(api, pluginRoot);
     const storage = createStorage(config.workspaceRoot);
+    const bridgePath = path.join(config.workspaceRoot, "bridge", "session-map.json");
+    let bridgeState: BridgeState | null = null;
+    let bridgeLoading: Promise<void> | null = null;
+
+    const ensureBridgeLoaded = async () => {
+      if (bridgeState) return;
+      if (!bridgeLoading) {
+        bridgeLoading = (async () => {
+          try {
+            const raw = await fs.promises.readFile(bridgePath, "utf8");
+            const parsed = JSON.parse(raw) as BridgeState;
+            bridgeState = parsed && typeof parsed === "object" ? parsed : { sessions: {} };
+          } catch (err: any) {
+            if (err?.code !== "ENOENT") {
+              api.logger.warn(`travel-agent bridge load failed: ${String(err)}`);
+            }
+            bridgeState = { sessions: {} };
+          }
+        })();
+      }
+      await bridgeLoading;
+    };
+
+    const persistBridgeState = async () => {
+      if (!bridgeState) return;
+      const dir = path.dirname(bridgePath);
+      await fs.promises.mkdir(dir, { recursive: true });
+      const tmp = `${bridgePath}.${Date.now()}.tmp`;
+      await fs.promises.writeFile(tmp, JSON.stringify(bridgeState, null, 2), "utf8");
+      await fs.promises.rename(tmp, bridgePath);
+    };
+
+    const bindSessionToTrip = async (sessionKey: string | null, tripId: string) => {
+      if (!sessionKey) return;
+      if (isTripSessionKey(sessionKey)) return;
+      await ensureBridgeLoaded();
+      const state = bridgeState!;
+      const existing = state.sessions[sessionKey];
+      if (existing && existing.tripId === tripId) return existing;
+
+      const trip = await storage.getTrip(tripId);
+      const label = sessionAgentLabel(sessionKey);
+      const title = `${label} — ${trip?.name ?? tripId}`;
+      const conversation = await storage.createConversation(tripId, { title });
+      const entry: BridgeEntry = {
+        tripId,
+        conversationId: conversation.id,
+        updatedAt: new Date().toISOString(),
+      };
+      state.sessions[sessionKey] = entry;
+      await persistBridgeState();
+      return entry;
+    };
+
+    const appendMirroredMessages = async (
+      sessionKey: string,
+      messages: unknown[],
+    ) => {
+      if (!sessionKey || isTripSessionKey(sessionKey)) return;
+      await ensureBridgeLoaded();
+      const state = bridgeState!;
+      const entry = state.sessions[sessionKey];
+      if (!entry) return;
+
+      const snapshot = Array.isArray(messages) ? messages : [];
+      let lastUser: { content: string; timestamp?: string } | null = null;
+      let lastAssistant: { content: string; timestamp?: string } | null = null;
+
+      for (let i = snapshot.length - 1; i >= 0; i--) {
+        const msg = snapshot[i] as any;
+        if (!msg || typeof msg.role !== "string") continue;
+        const text = extractTextFromContent(msg.content);
+        if (!text) continue;
+        if (!lastAssistant && msg.role === "assistant") {
+          lastAssistant = {
+            content: text,
+            timestamp: typeof msg.timestamp === "string" ? msg.timestamp : undefined,
+          };
+        }
+        if (!lastUser && msg.role === "user") {
+          const cleaned = cleanMirroredUserMessage(text);
+          if (!cleaned) continue;
+          lastUser = {
+            content: cleaned,
+            timestamp: typeof msg.timestamp === "string" ? msg.timestamp : undefined,
+          };
+        }
+        if (lastUser && lastAssistant) break;
+      }
+
+      const nowIso = new Date().toISOString();
+      let didWrite = false;
+      if (lastUser) {
+        const digest = hashText(`user:${lastUser.content}:${lastUser.timestamp ?? ""}`);
+        if (digest !== entry.lastUserDigest) {
+          const message: StoredMessage = {
+            id: crypto.randomUUID(),
+            type: "user",
+            content: lastUser.content,
+            timestamp: lastUser.timestamp ?? nowIso,
+            metadata: { sourceSession: sessionKey },
+          };
+          await storage.appendMessage(entry.tripId, entry.conversationId, message);
+          entry.lastUserDigest = digest;
+          didWrite = true;
+        }
+      }
+
+      if (lastAssistant) {
+        const digest = hashText(`assistant:${lastAssistant.content}:${lastAssistant.timestamp ?? ""}`);
+        if (digest !== entry.lastAssistantDigest) {
+          const message: StoredMessage = {
+            id: crypto.randomUUID(),
+            type: "assistant",
+            content: lastAssistant.content,
+            timestamp: lastAssistant.timestamp ?? nowIso,
+            metadata: { sourceSession: sessionKey },
+          };
+          await storage.appendMessage(entry.tripId, entry.conversationId, message);
+          entry.lastAssistantDigest = digest;
+          didWrite = true;
+        }
+      }
+
+      if (didWrite) {
+        entry.updatedAt = nowIso;
+        await persistBridgeState();
+      }
+    };
 
     api.logger.info(`travel-agent plugin loaded (workspace: ${config.workspaceRoot})`);
 
@@ -129,6 +336,7 @@ const plugin = {
             if (!tripId) {
               return { content: [{ type: "text", text: "Trip ID is required." }], isError: true };
             }
+            await bindSessionToTrip(sessionKey, tripId);
             const itinerary = await storage.readItinerary(tripId);
             return { content: [{ type: "text", text: itinerary || "(empty itinerary)" }] };
           },
@@ -152,6 +360,7 @@ const plugin = {
             if (!tripId) {
               return { content: [{ type: "text", text: "Trip ID is required." }], isError: true };
             }
+            await bindSessionToTrip(sessionKey, tripId);
             await storage.writeItinerary(tripId, content);
             return { content: [{ type: "text", text: `Updated itinerary for ${tripId}.` }] };
           },
@@ -172,6 +381,7 @@ const plugin = {
             if (!tripId) {
               return { content: [{ type: "text", text: "Trip ID is required." }], isError: true };
             }
+            await bindSessionToTrip(sessionKey, tripId);
             const context = await storage.readContext(tripId);
             return { content: [{ type: "text", text: context || "(empty context)" }] };
           },
@@ -195,6 +405,7 @@ const plugin = {
             if (!tripId) {
               return { content: [{ type: "text", text: "Trip ID is required." }], isError: true };
             }
+            await bindSessionToTrip(sessionKey, tripId);
             await storage.writeContext(tripId, content);
             return { content: [{ type: "text", text: `Updated context for ${tripId}.` }] };
           },
@@ -220,6 +431,12 @@ const plugin = {
           "Do not claim changes are saved unless you actually called update_itinerary/update_context.",
         ].join("\n"),
       };
+    });
+
+    api.on("agent_end", (event, ctx) => {
+      const sessionKey = ctx.sessionKey ?? null;
+      if (!sessionKey) return;
+      void appendMirroredMessages(sessionKey, event.messages ?? []);
     });
 
     api.registerHttpHandler(async (req: any, res: any) => {
