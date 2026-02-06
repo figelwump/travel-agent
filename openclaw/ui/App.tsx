@@ -317,6 +317,13 @@ const App: React.FC = () => {
     });
   }, []);
 
+  const refreshItinerary = useCallback(async () => {
+    if (!activeTripId) return;
+    const res = await apiFetch<string>(`/api/trips/${activeTripId}/itinerary`, { method: "GET" });
+    if (!res.ok) return;
+    setItineraryMarkdown(res.data);
+  }, [activeTripId]);
+
   const extractChatText = useCallback((message: any): string => {
     if (!message) return "";
     if (typeof message === "string") return message;
@@ -682,13 +689,6 @@ const App: React.FC = () => {
     });
     setMessages(mapped);
   };
-
-  const refreshItinerary = useCallback(async () => {
-    if (!activeTripId) return;
-    const res = await apiFetch<string>(`/api/trips/${activeTripId}/itinerary`, { method: "GET" });
-    if (!res.ok) return;
-    setItineraryMarkdown(res.data);
-  }, [activeTripId]);
 
   useEffect(() => {
     refreshTrips();
